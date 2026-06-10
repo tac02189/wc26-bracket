@@ -15,7 +15,7 @@ const PAGES = { picks: Picks, bracket: Bracket, table: Leaderboard, rules: Rules
 
 function Shell() {
   const { user } = useAuth();
-  const [tab, setTab] = useState("picks");
+  const [tab, setTab] = useState("table");
   const { data: settings } = useDoc(user ? "config/settings" : null);
 
   if (user === undefined) {
