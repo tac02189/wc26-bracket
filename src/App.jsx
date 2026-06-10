@@ -3,6 +3,7 @@ import { LogOut, Trophy } from "lucide-react";
 import { AuthProvider, signOutUser, useAuth } from "./context/AuthContext";
 import { useDoc } from "./lib/hooks";
 import NavTabs from "./components/NavTabs";
+import JoinBanner from "./components/JoinBanner";
 import SignIn from "./pages/SignIn";
 import Picks from "./pages/Picks";
 import Bracket from "./pages/Bracket";
@@ -56,6 +57,8 @@ function Shell() {
           </button>
         </div>
       </header>
+
+      <JoinBanner uid={user.uid} onJoined={() => setTab("table")} />
 
       {settings?.notice && (
         <div className="mb-3 rounded-lg border border-gold/40 bg-gold/10 px-3 py-2 text-sm">

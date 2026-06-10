@@ -37,6 +37,12 @@ Key invariants:
   stay identical: `isAdmin()` in `firestore.rules` (requires rules redeploy)
   and the `ADMIN_EMAIL` check in `App.jsx` (cosmetic tab visibility). Rules
   write-shape checks mean picks docs may only contain their exact known fields.
+- **Leagues** (`src/lib/leagues.js`) are named leaderboard slices, NOT privacy
+  walls — one global set of picks/scores; a league only narrows who you rank
+  against. Admin-created `leagues/{code}` (doc id = share code); membership is
+  denormalized on `users/{uid}.leagues` as `{code: name}` so the leaderboard
+  filters with zero extra reads. Join link = `?join={code}` (handled by
+  `JoinBanner`). Reveal/lock semantics are unchanged and remain global.
 
 ## Results pipeline (v1.1)
 

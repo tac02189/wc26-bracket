@@ -62,5 +62,15 @@ service cloud.firestore {
       allow read: if signedIn();
       allow write: if isAdmin();
     }
+
+    // Leagues are admin-created named pools; the doc id IS the share code, so
+    // anyone holding a code can get() it to confirm/join, but only admin lists
+    // or writes. Membership lives on each user's own doc (users/{uid}.leagues),
+    // so members never write here — they edit their own user doc to join/leave.
+    match /leagues/{code} {
+      allow get: if signedIn();
+      allow list: if isAdmin();
+      allow write: if isAdmin();
+    }
   }
 }

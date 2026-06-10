@@ -6,6 +6,7 @@ import { useDoc } from "../lib/hooks";
 import { GROUPS, GROUP_LETTERS, TEAMS } from "../data/tournament";
 import GroupCard from "../components/GroupCard";
 import Flag from "../components/Flag";
+import LeaguesAdmin from "../components/LeaguesAdmin";
 
 // Manual fallback for everything the results bot does. Writes the exact same
 // doc shapes, so bot and human edits are interchangeable. Rules gate writes to
@@ -41,6 +42,8 @@ export default function Admin() {
         <h2 className="font-display font-bold text-3xl tracking-wide">ADMIN</h2>
         {msg && <span className="text-xs text-live">{msg}</span>}
       </div>
+
+      <LeaguesAdmin setMsg={setMsg} />
 
       <p className="text-xs text-dim">
         Manual override for everything the results bot writes. Group results: tap actual finishing
