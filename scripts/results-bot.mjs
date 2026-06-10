@@ -132,16 +132,16 @@ async function main() {
     if (thirdsAdvancing.length !== 8) thirdsAdvancing = null; // partial R32 draw — wait
   }
 
-  await db.doc("results/groups").set(
-    {
-      standings,
-      groupComplete,
-      allGroupsFinal,
-      thirdsAdvancing,
-      updatedAt: FieldValue.serverTimestamp(),
-    },
-    { merge: true }
-  );
+  // thirdsAdvancing is only written once known — never null, so a manual
+  // admin entry can't be clobbered back to null by a later bot run.
+  const groupsPayload = {
+    standings,
+    groupComplete,
+    allGroupsFinal,
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+  if (thirdsAdvancing) groupsPayload.thirdsAdvancing = thirdsAdvancing;
+  await db.doc("results/groups").set(groupsPayload, { merge: true });
 
   if (Object.keys(koBySlot).length > 0) {
     await db.doc("results/knockout").set(

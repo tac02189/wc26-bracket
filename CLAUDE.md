@@ -33,10 +33,10 @@ Key invariants:
   hook carries hard-won fixes (stale-tab clobber, offline hydration, unmount
   flush); don't hand-roll saves around it. Partial picks are legal everywhere —
   scoring skips gaps.
-- The admin UID lives in TWO places that must stay identical: `isAdmin()` in
-  `firestore.rules` (requires rules redeploy) and `config/settings.adminUid`
-  (controls the Admin tab). Rules write-shape checks mean picks docs may only
-  contain their exact known fields.
+- Admin = `tac02189@gmail.com`, gated by verified email in TWO places that must
+  stay identical: `isAdmin()` in `firestore.rules` (requires rules redeploy)
+  and the `ADMIN_EMAIL` check in `App.jsx` (cosmetic tab visibility). Rules
+  write-shape checks mean picks docs may only contain their exact known fields.
 
 ## Results pipeline (v1.1)
 

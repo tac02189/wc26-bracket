@@ -27,7 +27,10 @@ function Shell() {
   if (!user) return <SignIn />;
 
   const Page = PAGES[tab] ?? Picks;
-  const isAdmin = !!settings?.adminUid && settings.adminUid === user.uid;
+  // Cosmetic gate only — firestore.rules isAdmin() (same email) is the real one.
+  const isAdmin =
+    user.email === "tac02189@gmail.com" ||
+    (!!settings?.adminUid && settings.adminUid === user.uid);
 
   return (
     <div className="mx-auto min-h-dvh max-w-md px-3 pb-24">
