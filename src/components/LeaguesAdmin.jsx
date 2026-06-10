@@ -75,23 +75,23 @@ export default function LeaguesAdmin({ setMsg }) {
       <ul className="space-y-2">
         {leagues.length === 0 && <li className="text-xs text-dim/70">No leagues yet.</li>}
         {leagues.map((l) => (
-          <li key={l.code} className="rounded-lg border border-line bg-panel2/50 px-3 py-2">
+          <li key={l.id} className="rounded-lg border border-line bg-panel2/50 px-3 py-2">
             <div className="flex items-center justify-between">
               <span className="font-display font-bold">{l.name}</span>
               <span className="flex items-center gap-1 text-xs text-dim">
-                <Users size={13} /> {counts[l.code] ?? 0}
+                <Users size={13} /> {counts[l.id] ?? 0}
               </span>
             </div>
             <div className="mt-1 flex items-center gap-2">
               <code className="flex-1 truncate rounded bg-pitch/50 px-2 py-1 text-xs text-dim">
-                {joinLink(l.code)}
+                {joinLink(l.id)}
               </code>
               <button
-                onClick={() => copy(l.code)}
+                onClick={() => copy(l.id)}
                 className="flex items-center gap-1 rounded-md border border-line px-2 py-1 text-xs text-ink"
               >
-                {copied === l.code ? <Check size={13} className="text-live" /> : <Copy size={13} />}
-                {copied === l.code ? "Copied" : "Copy"}
+                {copied === l.id ? <Check size={13} className="text-live" /> : <Copy size={13} />}
+                {copied === l.id ? "Copied" : "Copy"}
               </button>
             </div>
           </li>
