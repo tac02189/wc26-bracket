@@ -23,8 +23,8 @@ export function toggleRank(order, teamCodes, code) {
 }
 
 const BADGE = {
-  0: "bg-gold text-pitch", // 1st — advances
-  1: "bg-gold/80 text-pitch", // 2nd — advances
+  0: "bg-gold text-pitch", // 1st — advances (amarelo)
+  1: "bg-azul text-white", // 2nd — advances (azul)
   2: "bg-amber-700/60 text-ink", // 3rd — maybe (thirds race)
   3: "bg-panel2 text-dim", // 4th — out
 };
@@ -83,7 +83,7 @@ export default function GroupCard({ letter, order, onChange, disabled }) {
                 disabled={disabled}
                 onClick={() => onChange(toggleRank(order, teamCodes, code))}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors ${
-                  ranked && rank < 2 ? "bg-gold/5" : ""
+                  ranked && rank === 0 ? "bg-gold/5" : ranked && rank === 1 ? "bg-azul/10" : ""
                 } ${disabled ? "cursor-default" : "active:bg-panel2"}`}
               >
                 <span
@@ -98,7 +98,13 @@ export default function GroupCard({ letter, order, onChange, disabled }) {
                   {TEAMS[code].name}
                 </span>
                 {ranked && rank < 2 && (
-                  <span className="text-[10px] font-bold tracking-widest text-gold/80">ADV</span>
+                  <span
+                    className={`text-[10px] font-bold tracking-widest ${
+                      rank === 0 ? "text-gold/80" : "text-azul"
+                    }`}
+                  >
+                    ADV
+                  </span>
                 )}
               </button>
             </li>

@@ -4,16 +4,18 @@
   --font-display: "Barlow Condensed", "Arial Narrow", sans-serif;
   --font-body: "Atkinson Hyperlegible", system-ui, sans-serif;
 
-  --color-pitch: #0b0f14;
-  --color-panel: #121a23;
-  --color-panel2: #1a2532;
-  --color-line: #233140;
-  --color-ink: #eaf0f6;
-  --color-dim: #8ca0b3;
-  --color-gold: #f1b82d;
-  --color-golddark: #b8860b;
-  --color-live: #34d399;
-  --color-bad: #f87171;
+  /* Verde-Amarela — bold Brazil flag: deep green field, amarelo accent, azul runner-up */
+  --color-pitch: #013d23;
+  --color-panel: #0a512f;
+  --color-panel2: #0f5e38;
+  --color-line: #1a6340;
+  --color-ink: #f3faf5;
+  --color-dim: #a7cbb8;
+  --color-gold: #ffdf00;
+  --color-golddark: #e0c200;
+  --color-azul: #4f8ff7;
+  --color-live: #3ce8a0;
+  --color-bad: #ff6b6b;
 }
 
 html {
