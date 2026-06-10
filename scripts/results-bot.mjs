@@ -109,7 +109,9 @@ async function main() {
   if (!process.env.FIREBASE_SERVICE_ACCOUNT) throw new Error("FIREBASE_SERVICE_ACCOUNT missing");
   if (!isMapComplete()) throw new Error("team-map.mjs still has placeholder entries — fill it first");
 
-  initializeApp({ credential: cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)) });
+  // Strip a leading BOM/whitespace — some secret-setting paths prepend one.
+  const svc = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT.replace(/^﻿/, "").trim());
+  initializeApp({ credential: cert(svc) });
   const db = getFirestore();
 
   const [standingsPayload, matchesPayload] = await Promise.all([
