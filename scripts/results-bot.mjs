@@ -12,7 +12,8 @@ const API = "https://api.football-data.org/v4/competitions/WC";
 
 async function fd(path) {
   const res = await fetch(`${API}${path}`, {
-    headers: { "X-Auth-Token": process.env.FOOTBALL_DATA_TOKEN },
+    // .trim() also drops a leading BOM (U+FEFF), which is illegal in a header.
+    headers: { "X-Auth-Token": process.env.FOOTBALL_DATA_TOKEN.trim() },
   });
   if (!res.ok) throw new Error(`football-data ${path} -> HTTP ${res.status}`);
   return res.json();
