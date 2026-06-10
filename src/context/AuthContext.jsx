@@ -1,5 +1,11 @@
 import { createContext, useContext, useEffect, useState } from "react";
-import { onAuthStateChanged, signInWithPopup, signOut } from "firebase/auth";
+import {
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  signInWithPopup,
+  signOut,
+  updateProfile,
+} from "firebase/auth";
 import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
 import { auth, db, googleProvider } from "../firebase";
 
@@ -16,13 +22,14 @@ export function AuthProvider({ children }) {
         try {
           const ref = doc(db, "users", u.uid);
           const snap = await getDoc(ref);
+          const existing = snap.exists() ? snap.data() : null;
           await setDoc(
             ref,
             {
-              displayName: u.displayName ?? "Anonymous",
-              photoURL: u.photoURL ?? null,
+              displayName: u.displayName ?? existing?.displayName ?? "Anonymous",
+              photoURL: u.photoURL ?? existing?.photoURL ?? null,
               lastSeenAt: serverTimestamp(),
-              ...(snap.exists() ? {} : { joinedAt: serverTimestamp() }),
+              ...(existing ? {} : { joinedAt: serverTimestamp() }),
             },
             { merge: true }
           );
@@ -40,6 +47,21 @@ export const useAuth = () => useContext(AuthCtx);
 
 export async function signInWithGoogle() {
   await signInWithPopup(auth, googleProvider);
+}
+
+// PIN sign-in for people without an email. Each PIN is a pre-created account
+// (synthetic email + padded password) made by scripts/pin-setup. The derivation
+// here MUST match that script. The person only ever sees a name + 4-digit PIN.
+export const pinEmail = (pin) => `pin${String(pin).trim()}@wc26pool.app`;
+export const pinPassword = (pin) => `${String(pin).trim()}wc26pin`;
+
+export async function signInWithPin(pin, name) {
+  const cred = await signInWithEmailAndPassword(auth, pinEmail(pin), pinPassword(pin));
+  const nm = (name || "").trim();
+  if (nm && nm !== cred.user.displayName) {
+    await updateProfile(cred.user, { displayName: nm });
+    await setDoc(doc(db, "users", cred.user.uid), { displayName: nm }, { merge: true });
+  }
 }
 
 export async function signOutUser() {
