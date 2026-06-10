@@ -41,11 +41,15 @@ const KO_STAGE_BASE = {
   FINAL: 104,
 };
 
+// football-data is inconsistent across endpoints: standings use "Group A",
+// matches use "GROUP_A". Take the trailing token either way.
+const groupLetter = (g) => g?.split(/[ _]/).pop();
+
 function transformStandings(payload) {
   const standings = {};
   for (const s of payload.standings ?? []) {
     if (s.type !== "TOTAL" || !s.group) continue;
-    const letter = s.group.replace("GROUP_", "");
+    const letter = groupLetter(s.group);
     standings[letter] = s.table.map((row) => ({
       code: code(row.team),
       played: row.playedGames,
@@ -64,7 +68,7 @@ function transformMatches(payload) {
 
   for (const m of payload.matches ?? []) {
     if (m.stage === "GROUP_STAGE") {
-      const letter = m.group?.replace("Group ", "")?.replace("GROUP_", "");
+      const letter = groupLetter(m.group);
       if (!letter) continue;
       groupComplete[letter] ??= { total: 0, finished: 0 };
       groupComplete[letter].total += 1;

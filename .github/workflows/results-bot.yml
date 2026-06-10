@@ -1,10 +1,8 @@
 name: results-bot
 
 on:
-  # UNCOMMENT once the FIREBASE_SERVICE_ACCOUNT secret is set — until then the
-  # cron would just fail-email every 30 minutes.
-  # schedule:
-  #   - cron: "*/30 * * * *" # every 30 min; GH may lag a few minutes — fine
+  schedule:
+    - cron: "*/30 * * * *" # every 30 min; GH may lag a few minutes — fine
   workflow_dispatch: {} # manual "Run workflow" button (important June 27)
 
 jobs:
