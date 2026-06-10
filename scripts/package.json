@@ -1,0 +1,8 @@
+{
+  "name": "wc26-results-bot",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "firebase-admin": "^13.4.0"
+  }
+}

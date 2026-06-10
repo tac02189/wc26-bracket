@@ -1,0 +1,61 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Lock instants are hardcoded so picks-locking is enforced server-side.
+    // Verified 2026-06-09 (ESPN + Sky Sports):
+    //   opener Mexico–South Africa June 11, 13:00 Mexico City = 19:00 UTC
+    //   first Round-of-32 match June 28, 8pm UK = 19:00 UTC (re-verify before v2.0)
+    // Changing these requires: edit + `firebase deploy --only firestore:rules`
+    function groupLock()   { return timestamp.date(2026, 6, 11) + duration.value(19, 'h'); }
+    function bracketLock() { return timestamp.date(2026, 6, 28) + duration.value(19, 'h'); }
+
+    function signedIn() { return request.auth != null; }
+    function isAdmin()  { return signedIn() && request.auth.uid == 'REPLACE_WITH_THIAGO_UID'; }
+    // Optional membership gate: to close the pool to invited people only,
+    // replace signedIn() with isMember() everywhere below and list the
+    // family's Google emails here, then `firebase deploy --only firestore:rules`.
+    // function isMember() {
+    //   return signedIn() && request.auth.token.email in [
+    //     'tac02189@gmail.com'
+    //   ];
+    // }
+
+    match /users/{uid} {
+      allow read: if signedIn();
+      allow write: if signedIn() && request.auth.uid == uid;
+    }
+
+    // Own picks: read/write any time before lock. Others' picks: readable only
+    // after lock. Shape checks: the thirds cap matters — scoring counts every
+    // matching entry, so an uncapped array would be a score-inflation vector.
+    match /groupPicks/{uid} {
+      allow read: if signedIn()
+                  && (request.auth.uid == uid || request.time > groupLock() || isAdmin());
+      allow write: if signedIn() && request.auth.uid == uid && request.time < groupLock()
+                  && request.resource.data.keys().hasOnly(['groups', 'thirds', 'updatedAt'])
+                  && request.resource.data.groups is map
+                  && request.resource.data.thirds is list
+                  && request.resource.data.thirds.size() <= 8;
+    }
+
+    match /bracketPicks/{uid} {
+      allow read: if signedIn()
+                  && (request.auth.uid == uid || request.time > bracketLock() || isAdmin());
+      allow write: if signedIn() && request.auth.uid == uid && request.time < bracketLock()
+                  && request.resource.data.keys().hasOnly(['winners', 'champion', 'updatedAt'])
+                  && request.resource.data.winners is map;
+    }
+
+    // Written by the results bot (admin SDK bypasses rules) or Thiago's admin page.
+    match /results/{doc} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    match /config/{doc} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+  }
+}

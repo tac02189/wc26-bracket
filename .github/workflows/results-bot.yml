@@ -1,0 +1,20 @@
+name: results-bot
+
+on:
+  schedule:
+    - cron: "*/30 * * * *" # every 30 min; GH may lag a few minutes — fine
+  workflow_dispatch: {} # manual "Run workflow" button (important June 27)
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci --prefix scripts
+      - run: node scripts/results-bot.mjs
+        env:
+          FOOTBALL_DATA_TOKEN: ${{ secrets.FOOTBALL_DATA_TOKEN }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
