@@ -121,7 +121,7 @@ export default function Bracket() {
 
       <CountdownBanner lockAt={BRACKET_LOCK_AT} label="Bracket locks in" />
 
-      <div className="sticky top-0 z-10 -mx-3 bg-pitch/95 px-3 py-2 backdrop-blur">
+      <div className="sticky top-[env(safe-area-inset-top)] z-10 -mx-3 bg-pitch/95 px-3 py-2 backdrop-blur">
         <div className="grid grid-cols-5 gap-1">
           {ROUNDS.map((r) => {
             const filled = r.matches.filter((n) => winners?.[slotOf(n)]).length;

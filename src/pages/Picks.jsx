@@ -95,7 +95,7 @@ export default function Picks() {
       <CountdownBanner lockAt={GROUP_LOCK_AT} label="Group picks lock in" />
 
       <div
-        className={`nums sticky top-0 z-10 rounded-lg border px-3 py-2 text-sm backdrop-blur ${
+        className={`nums sticky top-[env(safe-area-inset-top)] z-10 rounded-lg border px-3 py-2 text-sm backdrop-blur ${
           done
             ? "border-live/40 bg-live/10 text-live"
             : thirdsDropped || thirdsShort

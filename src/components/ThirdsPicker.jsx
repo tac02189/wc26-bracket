@@ -13,7 +13,7 @@ export default function ThirdsPicker({ thirdByGroup, selected, onChange, disable
 
   return (
     <div className="rounded-xl border border-line bg-panel overflow-clip">
-      <div className="sticky top-0 z-10 flex items-center justify-between px-3 py-2 border-b border-line bg-panel2/90 backdrop-blur">
+      <div className="sticky top-[env(safe-area-inset-top)] z-10 flex items-center justify-between px-3 py-2 border-b border-line bg-panel2/90 backdrop-blur">
         <span className="font-display font-bold text-xl text-gold">BEST THIRDS</span>
         <span className={`nums font-display font-bold text-lg ${full ? "text-live" : "text-dim"}`}>
           {selected.length}/{THIRDS_ADVANCING_COUNT}

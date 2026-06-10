@@ -26,7 +26,7 @@ export default function SignIn() {
   }
 
   return (
-    <div className="min-h-dvh flex flex-col items-center justify-center gap-6 px-6 text-center">
+    <div className="min-h-dvh flex flex-col items-center justify-center gap-6 px-6 py-[env(safe-area-inset-top)] text-center">
       <Trophy size={56} className="text-gold" strokeWidth={1.5} />
       <div>
         <h1 className="font-display font-bold text-5xl leading-none tracking-wide">

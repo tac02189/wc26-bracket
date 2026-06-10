@@ -33,7 +33,7 @@ function Shell() {
     (!!settings?.adminUid && settings.adminUid === user.uid);
 
   return (
-    <div className="mx-auto min-h-dvh max-w-md px-3 pb-24">
+    <div className="mx-auto min-h-dvh max-w-md px-3 pb-24 pt-[env(safe-area-inset-top)]">
       <header className="flex items-center justify-between py-3">
         <span className="font-display font-bold text-2xl tracking-wide">
           WC<span className="text-gold">26</span> POOL
