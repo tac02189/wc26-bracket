@@ -64,6 +64,13 @@ export async function signInWithPin(pin, name) {
   }
 }
 
+export async function updateDisplayName(name) {
+  const nm = (name || "").trim();
+  if (!nm || !auth.currentUser) return;
+  await updateProfile(auth.currentUser, { displayName: nm });
+  await setDoc(doc(db, "users", auth.currentUser.uid), { displayName: nm }, { merge: true });
+}
+
 export async function signOutUser() {
   await signOut(auth);
 }

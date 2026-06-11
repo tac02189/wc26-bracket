@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { LogOut, Trophy } from "lucide-react";
-import { AuthProvider, signOutUser, useAuth } from "./context/AuthContext";
+import { LogOut, Pencil, Trophy } from "lucide-react";
+import { AuthProvider, signOutUser, updateDisplayName, useAuth } from "./context/AuthContext";
 import { useDoc } from "./lib/hooks";
 import NavTabs from "./components/NavTabs";
 import JoinBanner from "./components/JoinBanner";
@@ -17,6 +17,23 @@ function Shell() {
   const { user } = useAuth();
   const [tab, setTab] = useState("table");
   const { data: settings } = useDoc(user ? "config/settings" : null);
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
+  const [savingName, setSavingName] = useState(false);
+
+  async function saveName() {
+    const nm = nameDraft.trim();
+    if (!nm) return;
+    setSavingName(true);
+    try {
+      await updateDisplayName(nm);
+      setEditingName(false);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSavingName(false);
+    }
+  }
 
   if (user === undefined) {
     return (
@@ -39,24 +56,63 @@ function Shell() {
         <span className="font-display font-bold text-2xl tracking-wide">
           WC<span className="text-gold">26</span> POOL
         </span>
-        <div className="flex items-center gap-2">
-          {user.photoURL && (
-            <img
-              src={user.photoURL}
-              alt={user.displayName ?? ""}
-              referrerPolicy="no-referrer"
-              className="h-7 w-7 rounded-full ring-1 ring-line"
-            />
-          )}
+        <div className="flex min-w-0 items-center gap-2">
+          <button
+            onClick={() => {
+              setNameDraft(user.displayName ?? "");
+              setEditingName((v) => !v);
+            }}
+            className="flex min-w-0 items-center gap-1.5 text-dim hover:text-ink"
+            aria-label="Change your name"
+          >
+            {user.photoURL ? (
+              <img
+                src={user.photoURL}
+                alt=""
+                referrerPolicy="no-referrer"
+                className="h-7 w-7 shrink-0 rounded-full ring-1 ring-line"
+              />
+            ) : (
+              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-panel2 font-display font-bold text-dim">
+                {(user.displayName ?? "?")[0]}
+              </span>
+            )}
+            <span className="max-w-[5.5rem] truncate text-sm">{user.displayName ?? "Set name"}</span>
+            <Pencil size={13} className="shrink-0" />
+          </button>
           <button
             onClick={signOutUser}
-            className="-m-1 p-2.5 text-dim hover:text-ink"
+            className="-m-1 shrink-0 p-2.5 text-dim hover:text-ink"
             aria-label="Sign out"
           >
             <LogOut size={18} />
           </button>
         </div>
       </header>
+
+      {editingName && (
+        <div className="mb-3 flex items-center gap-2 rounded-lg border border-gold/40 bg-panel px-3 py-2">
+          <input
+            autoFocus
+            value={nameDraft}
+            onChange={(e) => setNameDraft(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && saveName()}
+            placeholder="Your name"
+            maxLength={40}
+            className="min-w-0 flex-1 rounded-lg border border-line bg-panel2 px-3 py-2 text-sm text-ink placeholder:text-dim/60"
+          />
+          <button
+            onClick={saveName}
+            disabled={savingName || !nameDraft.trim()}
+            className="shrink-0 rounded-lg bg-gold px-3 py-2 text-sm font-bold text-pitch disabled:opacity-50"
+          >
+            {savingName ? "…" : "Save"}
+          </button>
+          <button onClick={() => setEditingName(false)} className="shrink-0 px-1 text-sm text-dim">
+            Cancel
+          </button>
+        </div>
+      )}
 
       <JoinBanner uid={user.uid} onJoined={() => setTab("table")} />
 
