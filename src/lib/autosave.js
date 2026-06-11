@@ -38,6 +38,12 @@ export function useLockedAutosave({ path, lockAt, normalize, toDoc }) {
     setValue(v);
   };
 
+  // Re-derive when the effective lock changes — an admin grace can push lockAt
+  // into the future (open) or back to the past (close) for a single user.
+  useEffect(() => {
+    setLocked(Date.now() >= lockAt);
+  }, [lockAt]);
+
   useEffect(() => {
     if (locked) return undefined;
     const t = setInterval(() => {

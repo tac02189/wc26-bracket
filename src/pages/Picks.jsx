@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import { useDoc } from "../lib/hooks";
 import { useLockedAutosave } from "../lib/autosave";
 import { GROUP_LETTERS, TEAMS, THIRDS_ADVANCING_COUNT } from "../data/tournament";
 import { GROUP_LOCK_AT } from "../data/schedule";
@@ -14,6 +15,9 @@ const normalize = (d) => (d ? { groups: d.groups ?? {}, thirds: d.thirds ?? [] }
 
 export default function Picks() {
   const { user } = useAuth();
+  // An admin-granted late-pick grace pushes this user's effective lock forward.
+  const { data: grace } = useDoc(`pickGrace/${user.uid}`);
+  const effectiveLock = Math.max(GROUP_LOCK_AT, grace?.until?.toMillis?.() ?? 0);
   const {
     value: picks,
     update,
@@ -23,7 +27,7 @@ export default function Picks() {
     loading,
   } = useLockedAutosave({
     path: `groupPicks/${user.uid}`,
-    lockAt: GROUP_LOCK_AT,
+    lockAt: effectiveLock,
     normalize,
     toDoc: (v) => v,
   });
@@ -92,7 +96,7 @@ export default function Picks() {
         <SaveStatus state={saveState} />
       </div>
 
-      <CountdownBanner lockAt={GROUP_LOCK_AT} label="Group picks lock in" />
+      <CountdownBanner lockAt={effectiveLock} label="Group picks lock in" />
 
       <div
         className={`nums sticky top-[env(safe-area-inset-top)] z-10 rounded-lg border px-3 py-2 text-sm backdrop-blur ${

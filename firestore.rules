@@ -11,6 +11,14 @@ service cloud.firestore {
     function bracketLock() { return timestamp.date(2026, 6, 28) + duration.value(19, 'h'); }
 
     function signedIn() { return request.auth != null; }
+    // Admin-granted late-pick exception: a pickGrace/{uid} doc with a future
+    // `until` lets ONLY that user write group picks after the global lock.
+    // Everyone without such a doc stays locked. Admin writes pickGrace (or the
+    // results bot's admin SDK, which bypasses rules entirely).
+    function groupGrace(uid) {
+      return exists(/databases/$(database)/documents/pickGrace/$(uid))
+             && request.time < get(/databases/$(database)/documents/pickGrace/$(uid)).data.until;
+    }
     // Admin is gated by verified Google email — must match ADMIN_EMAIL in src/App.jsx.
     function isAdmin() {
       return signedIn()
@@ -37,7 +45,8 @@ service cloud.firestore {
     match /groupPicks/{uid} {
       allow read: if signedIn()
                   && (request.auth.uid == uid || request.time > groupLock() || isAdmin());
-      allow write: if signedIn() && request.auth.uid == uid && request.time < groupLock()
+      allow write: if signedIn() && request.auth.uid == uid
+                  && (request.time < groupLock() || groupGrace(uid))
                   && request.resource.data.keys().hasOnly(['groups', 'thirds', 'updatedAt'])
                   && request.resource.data.groups is map
                   && request.resource.data.thirds is list
@@ -60,6 +69,14 @@ service cloud.firestore {
 
     match /config/{doc} {
       allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    // Late-pick grace tokens. A user reads their own to know the UI should stay
+    // open; only admin grants/revokes them. Rule get()/exists() above read these
+    // regardless of this block.
+    match /pickGrace/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
       allow write: if isAdmin();
     }
 
