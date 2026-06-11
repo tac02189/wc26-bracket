@@ -41,8 +41,11 @@ Key invariants:
   walls — one global set of picks/scores; a league only narrows who you rank
   against. Admin-created `leagues/{code}` (doc id = share code); membership is
   denormalized on `users/{uid}.leagues` as `{code: name}` so the leaderboard
-  filters with zero extra reads. Join link = `?join={code}` (handled by
-  `JoinBanner`). Reveal/lock semantics are unchanged and remain global.
+  filters with zero extra reads. `users/{uid}.leaguesView` (same shape) grants
+  view-only access — the selector unions it in (Eye icon), but the membership
+  filter keys off `leagues` only, so a viewer sees the board without appearing
+  in it. Join link = `?join={code}` (handled by `JoinBanner`). Reveal/lock
+  semantics are unchanged and remain global.
 
 ## Results pipeline (v1.1)
 

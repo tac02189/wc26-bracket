@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ChevronDown, ChevronUp, Trophy, Users } from "lucide-react";
+import { ChevronDown, ChevronUp, Eye, Trophy, Users } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useCollection, useDoc } from "../lib/hooks";
 import { rankUsers, scoreGroup, scoreThirds, scoreUser } from "../lib/score";
@@ -117,10 +117,10 @@ export default function Leaderboard() {
   const [open, setOpen] = useState(null);
   const [league, setLeague] = useState("all");
 
-  const myLeagues = useMemo(
-    () => users.find((u) => u.id === user.uid)?.leagues ?? {},
-    [users, user.uid]
-  );
+  const me = useMemo(() => users.find((u) => u.id === user.uid), [users, user.uid]);
+  const memberLeagues = me?.leagues ?? {}; // counted + ranked
+  const viewLeagues = me?.leaguesView ?? {}; // can watch the board, not a member
+  const myLeagues = { ...viewLeagues, ...memberLeagues }; // membership name wins
   // If we left the selected league (or it vanished), fall back to Everyone.
   const activeLeague = league !== "all" && !myLeagues[league] ? "all" : league;
 
@@ -156,12 +156,13 @@ export default function Leaderboard() {
         <button
           key={code}
           onClick={() => setLeague(code)}
-          className={`shrink-0 rounded-full border px-3 py-1 text-sm font-bold ${
+          className={`flex shrink-0 items-center gap-1 rounded-full border px-3 py-1 text-sm font-bold ${
             activeLeague === code
               ? "border-gold bg-gold/10 text-gold"
               : "border-line text-dim"
           }`}
         >
+          {code !== "all" && !memberLeagues[code] && <Eye size={12} />}
           {label}
         </button>
       ))}
@@ -173,7 +174,8 @@ export default function Leaderboard() {
       <h2 className="font-display font-bold text-3xl tracking-wide">THE TABLE</h2>
       {activeLeague !== "all" && (
         <span className="flex items-center gap-1 text-xs text-dim">
-          <Users size={13} /> {members.length} in {myLeagues[activeLeague]}
+          {memberLeagues[activeLeague] ? <Users size={13} /> : <Eye size={13} />}
+          {members.length} in {myLeagues[activeLeague]}
         </span>
       )}
     </div>
