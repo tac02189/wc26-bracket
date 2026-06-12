@@ -30,20 +30,6 @@ export function scoreThirds(picked, actualEight, s = SCORING) {
   return (picked ?? []).filter((c) => set.has(c)).length * s.thirdAdvancer;
 }
 
-// "If standings hold": current 3rd-place teams ranked by points → GD → GF.
-// Display/provisional use ONLY — the official list comes from the real R32 field.
-export function computeProvisionalThirds(resultsGroups) {
-  if (!resultsGroups?.standings) return [];
-  return GROUP_LETTERS.map((g) => resultsGroups.standings[g]?.[2])
-    .filter(Boolean)
-    .sort(
-      (x, y) =>
-        (y.points ?? 0) - (x.points ?? 0) || (y.gd ?? 0) - (x.gd ?? 0) || (y.gf ?? 0) - (x.gf ?? 0)
-    )
-    .slice(0, 8)
-    .map((r) => r.code);
-}
-
 export function scoreBracket(winners, knockout, s = SCORING) {
   if (!knockout?.matches) return 0;
   let pts = 0;
@@ -57,32 +43,29 @@ export function scoreBracket(winners, knockout, s = SCORING) {
   return pts;
 }
 
-// Returns { total, final, provisional, detail }. `provisional` = points that
-// could still change (incomplete groups, unofficial thirds).
+// Decided points only: a group counts once it is COMPLETE, thirds once the
+// official advancers are known, knockout per FINISHED match. No "if standings
+// hold" projection — early standings are arbitrary ties and looked random.
 export function scoreUser(groupPicks, bracketPicks, results, s = SCORING) {
   const rg = results?.groups;
-  let final = 0;
-  let provisional = 0;
+  let total = 0;
   const detail = { groups: {}, thirds: 0, bracket: 0 };
 
   for (const g of GROUP_LETTERS) {
-    const pts = scoreGroup(groupPicks?.groups?.[g], rg?.standings?.[g], s);
+    const pts = rg?.groupComplete?.[g] ? scoreGroup(groupPicks?.groups?.[g], rg?.standings?.[g], s) : 0;
     detail.groups[g] = pts;
-    if (rg?.groupComplete?.[g]) final += pts;
-    else provisional += pts;
+    total += pts;
   }
 
-  const official = rg?.thirdsAdvancing?.length ? rg.thirdsAdvancing : null;
-  const thirdsPts = scoreThirds(groupPicks?.thirds, official ?? computeProvisionalThirds(rg), s);
-  detail.thirds = thirdsPts;
-  if (official) final += thirdsPts;
-  else provisional += thirdsPts;
+  if (rg?.thirdsAdvancing?.length) {
+    detail.thirds = scoreThirds(groupPicks?.thirds, rg.thirdsAdvancing, s);
+    total += detail.thirds;
+  }
 
-  const bracketPts = scoreBracket(bracketPicks?.winners, results?.knockout, s);
-  detail.bracket = bracketPts;
-  final += bracketPts; // only finished matches ever have winner set
+  detail.bracket = scoreBracket(bracketPicks?.winners, results?.knockout, s);
+  total += detail.bracket;
 
-  return { total: final + provisional, final, provisional, detail };
+  return { total, detail };
 }
 
 // rows: [{ uid, displayName, groupPicks, bracketPicks, score }]

@@ -18,7 +18,9 @@ function PickDetail({ row, results }) {
       <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
         {GROUP_LETTERS.map((g) => {
           const picked = row.groupPicks?.groups?.[g];
-          const pts = scoreGroup(picked, results?.groups?.standings?.[g]);
+          // Only show points once the group is decided (matches the scoring).
+          const complete = results?.groups?.groupComplete?.[g];
+          const pts = complete ? scoreGroup(picked, results?.groups?.standings?.[g]) : 0;
           return (
             <div key={g} className="flex items-center gap-1.5">
               <span className="font-display font-bold text-dim w-3">{g}</span>
@@ -28,7 +30,7 @@ function PickDetail({ row, results }) {
                     <Flag key={c} code={c} size={16} />
                   ))}
                   <span className="text-dim/70 truncate">{picked.slice(0, 2).join(" · ")}</span>
-                  <span className="nums ml-auto text-gold">{pts > 0 ? `+${pts}` : ""}</span>
+                  <span className="nums ml-auto text-gold">{complete ? `+${pts}` : ""}</span>
                 </>
               ) : (
                 <span className="text-dim/50">no pick</span>
@@ -211,16 +213,15 @@ export default function Leaderboard() {
     );
   }
 
-  const anyProvisional = ranked.some((r) => r.score.provisional > 0);
+  const anyComplete = Object.values(resultsGroups?.groupComplete ?? {}).some(Boolean);
 
   return (
     <div className="space-y-3 pb-4">
       {heading}
       {selector}
-      {anyProvisional && (
+      {!anyComplete && (
         <p className="text-xs text-dim">
-          <span className="text-live">●</span> includes live "if standings hold" points — they can
-          still move until each group finishes.
+          Scores are awarded as each group finishes — none have wrapped up yet, so everyone's at 0.
         </p>
       )}
       <ul className="rounded-xl border border-line bg-panel overflow-hidden">
@@ -238,7 +239,6 @@ export default function Leaderboard() {
               </span>
               <Avatar photoURL={r.photoURL} displayName={r.displayName} />
               <span className="flex-1 truncate">{r.displayName}</span>
-              {r.score.provisional > 0 && <span className="text-live text-xs">●</span>}
               <span className="nums font-display font-bold text-xl text-gold">{r.score.total}</span>
               {open === r.uid ? (
                 <ChevronUp size={16} className="text-dim" />
