@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { ChevronDown, ChevronUp, Eye, Trophy, Users } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useCollection, useDoc } from "../lib/hooks";
-import { rankUsers, scoreGroup, scoreThirds, scoreUser } from "../lib/score";
+import { rankUsers, scoreUser } from "../lib/score";
 import { GROUP_LETTERS } from "../data/tournament";
 import { GROUP_LOCK_AT, BRACKET_LOCK_AT } from "../data/schedule";
 import { getLeague, joinLeague } from "../lib/leagues";
@@ -13,14 +13,15 @@ import Flag from "../components/Flag";
 // same scores, ranks recomputed within the chosen members.
 
 function PickDetail({ row, results }) {
+  const detail = row.score?.detail ?? { groups: {}, thirds: 0 };
+  const thirdsOfficial = !!results?.groups?.thirdsAdvancing?.length;
   return (
     <div className="space-y-2 border-t border-line/60 bg-pitch/40 px-3 py-3">
       <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
         {GROUP_LETTERS.map((g) => {
           const picked = row.groupPicks?.groups?.[g];
-          // Only show points once the group is decided (matches the scoring).
+          const pts = detail.groups?.[g] ?? 0;
           const complete = results?.groups?.groupComplete?.[g];
-          const pts = complete ? scoreGroup(picked, results?.groups?.standings?.[g]) : 0;
           return (
             <div key={g} className="flex items-center gap-1.5">
               <span className="font-display font-bold text-dim w-3">{g}</span>
@@ -30,7 +31,9 @@ function PickDetail({ row, results }) {
                     <Flag key={c} code={c} size={16} />
                   ))}
                   <span className="text-dim/70 truncate">{picked.slice(0, 2).join(" · ")}</span>
-                  <span className="nums ml-auto text-gold">{complete ? `+${pts}` : ""}</span>
+                  <span className={`nums ml-auto ${complete ? "text-gold" : "text-live"}`}>
+                    {pts ? `+${pts}` : ""}
+                  </span>
                 </>
               ) : (
                 <span className="text-dim/50">no pick</span>
@@ -47,9 +50,11 @@ function PickDetail({ row, results }) {
             {c}
           </span>
         ))}
-        <span className="nums ml-auto text-gold">
-          +{scoreThirds(row.groupPicks?.thirds, results?.groups?.thirdsAdvancing ?? [])}
-        </span>
+        {detail.thirds > 0 && (
+          <span className={`nums ml-auto ${thirdsOfficial ? "text-gold" : "text-live"}`}>
+            +{detail.thirds}
+          </span>
+        )}
       </div>
     </div>
   );
@@ -213,17 +218,23 @@ export default function Leaderboard() {
     );
   }
 
-  const anyComplete = Object.values(resultsGroups?.groupComplete ?? {}).some(Boolean);
+  const anyProvisional = ranked.some((r) => r.score.provisional > 0);
+  const anyScored = ranked.some((r) => r.score.total > 0);
 
   return (
     <div className="space-y-3 pb-4">
       {heading}
       {selector}
-      {!anyComplete && (
+      {anyProvisional ? (
         <p className="text-xs text-dim">
-          Scores are awarded as each group finishes — none have wrapped up yet, so everyone's at 0.
+          <span className="text-live">●</span> live "if standings hold" points — counted once every
+          team in a group has played. They can still change; points turn solid when a group finishes.
         </p>
-      )}
+      ) : !anyScored ? (
+        <p className="text-xs text-dim">
+          Scores appear once every team in a group has played its first game.
+        </p>
+      ) : null}
       <ul className="rounded-xl border border-line bg-panel overflow-hidden">
         {ranked.length === 0 && (
           <li className="px-3 py-3 text-sm text-dim">Nobody here yet — share the link!</li>
@@ -239,6 +250,7 @@ export default function Leaderboard() {
               </span>
               <Avatar photoURL={r.photoURL} displayName={r.displayName} />
               <span className="flex-1 truncate">{r.displayName}</span>
+              {r.score.provisional > 0 && <span className="text-live text-xs">●</span>}
               <span className="nums font-display font-bold text-xl text-gold">{r.score.total}</span>
               {open === r.uid ? (
                 <ChevronUp size={16} className="text-dim" />

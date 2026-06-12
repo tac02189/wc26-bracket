@@ -11,6 +11,11 @@ import { GROUP_LETTERS } from "../data/tournament";
 
 const codes = (rows) => (rows ?? []).map((r) => (typeof r === "string" ? r : r.code));
 
+// A group becomes "live" (projection-eligible) once every team has played ≥1
+// match, so its order reflects real results rather than arbitrary 0-0 ties.
+export const groupEveryonePlayed = (standings) =>
+  standings?.length === 4 && standings.every((r) => (r.played ?? 0) >= 1);
+
 // Winner exact, runner-up exact, or right team in the top 2 but the wrong slot.
 export function scoreGroup(pickedOrder, actualOrder, s = SCORING) {
   const p = pickedOrder ?? [];
@@ -30,6 +35,20 @@ export function scoreThirds(picked, actualEight, s = SCORING) {
   return (picked ?? []).filter((c) => set.has(c)).length * s.thirdAdvancer;
 }
 
+// Current 3rd-place teams ranked by points → GD → GF, top 8. Projection only —
+// the official advancers come from the real R32 field.
+export function computeProvisionalThirds(rg) {
+  if (!rg?.standings) return [];
+  return GROUP_LETTERS.map((g) => rg.standings[g]?.[2])
+    .filter(Boolean)
+    .sort(
+      (x, y) =>
+        (y.points ?? 0) - (x.points ?? 0) || (y.gd ?? 0) - (x.gd ?? 0) || (y.gf ?? 0) - (x.gf ?? 0)
+    )
+    .slice(0, 8)
+    .map((r) => r.code);
+}
+
 export function scoreBracket(winners, knockout, s = SCORING) {
   if (!knockout?.matches) return 0;
   let pts = 0;
@@ -43,29 +62,38 @@ export function scoreBracket(winners, knockout, s = SCORING) {
   return pts;
 }
 
-// Decided points only: a group counts once it is COMPLETE, thirds once the
-// official advancers are known, knockout per FINISHED match. No "if standings
-// hold" projection — early standings are arbitrary ties and looked random.
+// Returns { total, final, provisional, detail }. `final` = decided (group
+// complete / official thirds / finished knockout). `provisional` = live "if
+// standings hold" points, counted ONLY for groups where every team has played
+// (and projected thirds once every group has). total = final + provisional.
 export function scoreUser(groupPicks, bracketPicks, results, s = SCORING) {
   const rg = results?.groups;
-  let total = 0;
+  let final = 0;
+  let provisional = 0;
   const detail = { groups: {}, thirds: 0, bracket: 0 };
 
   for (const g of GROUP_LETTERS) {
-    const pts = rg?.groupComplete?.[g] ? scoreGroup(groupPicks?.groups?.[g], rg?.standings?.[g], s) : 0;
+    const st = rg?.standings?.[g];
+    const complete = !!rg?.groupComplete?.[g];
+    const live = !complete && groupEveryonePlayed(st);
+    const pts = complete || live ? scoreGroup(groupPicks?.groups?.[g], st, s) : 0;
     detail.groups[g] = pts;
-    total += pts;
+    if (complete) final += pts;
+    else if (live) provisional += pts;
   }
 
   if (rg?.thirdsAdvancing?.length) {
     detail.thirds = scoreThirds(groupPicks?.thirds, rg.thirdsAdvancing, s);
-    total += detail.thirds;
+    final += detail.thirds;
+  } else if (GROUP_LETTERS.every((g) => groupEveryonePlayed(rg?.standings?.[g]))) {
+    detail.thirds = scoreThirds(groupPicks?.thirds, computeProvisionalThirds(rg), s);
+    provisional += detail.thirds;
   }
 
   detail.bracket = scoreBracket(bracketPicks?.winners, results?.knockout, s);
-  total += detail.bracket;
+  final += detail.bracket;
 
-  return { total, detail };
+  return { total: final + provisional, final, provisional, detail };
 }
 
 // rows: [{ uid, displayName, groupPicks, bracketPicks, score }]
