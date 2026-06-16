@@ -2,7 +2,12 @@ import { useMemo, useState } from "react";
 import { ChevronDown, ChevronUp, Eye, Trophy, Users } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useCollection, useDoc } from "../lib/hooks";
-import { rankUsers, scoreUser } from "../lib/score";
+import {
+  computeProvisionalThirds,
+  groupEveryonePlayed,
+  rankUsers,
+  scoreUser,
+} from "../lib/score";
 import { GROUP_LETTERS } from "../data/tournament";
 import { GROUP_LOCK_AT, BRACKET_LOCK_AT } from "../data/schedule";
 import { getLeague, joinLeague } from "../lib/leagues";
@@ -14,23 +19,46 @@ import Flag from "../components/Flag";
 
 function PickDetail({ row, results }) {
   const detail = row.score?.detail ?? { groups: {}, thirds: 0 };
-  const thirdsOfficial = !!results?.groups?.thirdsAdvancing?.length;
+  const rg = results?.groups;
+  const thirdsOfficial = !!rg?.thirdsAdvancing?.length;
+
+  // Bold-white = this pick is currently paying off (mirrors the scoring engine).
+  // Thirds that count right now: the real R32 field if known, else the live
+  // projection — the same set scoreThirds uses. Empty until thirds are scoreable.
+  const thirdsActual = thirdsOfficial
+    ? rg.thirdsAdvancing
+    : GROUP_LETTERS.every((g) => groupEveryonePlayed(rg?.standings?.[g]))
+      ? computeProvisionalThirds(rg)
+      : [];
+  const thirdsHit = new Set(thirdsActual);
+
   return (
     <div className="space-y-2 border-t border-line/60 bg-pitch/40 px-3 py-3">
       <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
         {GROUP_LETTERS.map((g) => {
           const picked = row.groupPicks?.groups?.[g];
           const pts = detail.groups?.[g] ?? 0;
-          const complete = results?.groups?.groupComplete?.[g];
+          const complete = rg?.groupComplete?.[g];
+          const st = rg?.standings?.[g];
+          // Actual top 2 once the group is being scored — a picked team landing
+          // here earns points (exact slot or right-team-wrong-slot), so we light
+          // it up. Empty until the group is complete or fully live.
+          const top2 =
+            complete || groupEveryonePlayed(st) ? (st ?? []).slice(0, 2).map((r) => r.code) : [];
           return (
             <div key={g} className="flex items-center gap-1.5">
               <span className="font-display font-bold text-dim w-3">{g}</span>
               {picked?.length === 4 ? (
                 <>
-                  {picked.slice(0, 2).map((c) => (
-                    <Flag key={c} code={c} size={16} />
-                  ))}
-                  <span className="text-dim/70 truncate">{picked.slice(0, 2).join(" · ")}</span>
+                  {picked.slice(0, 2).map((c) => {
+                    const hit = top2.includes(c);
+                    return (
+                      <span key={c} className="flex items-center gap-1">
+                        <Flag code={c} size={16} />
+                        <span className={hit ? "font-bold text-ink" : "text-dim/70"}>{c}</span>
+                      </span>
+                    );
+                  })}
                   <span className={`nums ml-auto ${complete ? "text-gold" : "text-live"}`}>
                     {pts ? `+${pts}` : ""}
                   </span>
@@ -44,12 +72,22 @@ function PickDetail({ row, results }) {
       </div>
       <div className="flex flex-wrap items-center gap-1.5 text-xs">
         <span className="font-display font-bold text-dim">THIRDS</span>
-        {(row.groupPicks?.thirds ?? []).map((c) => (
-          <span key={c} className="inline-flex items-center gap-1 rounded bg-panel2 px-1.5 py-0.5">
-            <Flag code={c} size={14} />
-            {c}
-          </span>
-        ))}
+        {(row.groupPicks?.thirds ?? []).map((c) => {
+          const hit = thirdsHit.has(c);
+          return (
+            <span
+              key={c}
+              className={`inline-flex items-center gap-1 rounded bg-panel2 px-1.5 py-0.5 ${
+                hit
+                  ? `font-bold text-ink ring-1 ${thirdsOfficial ? "ring-gold/40" : "ring-live/40"}`
+                  : "text-dim/70"
+              }`}
+            >
+              <Flag code={c} size={14} />
+              {c}
+            </span>
+          );
+        })}
         {detail.thirds > 0 && (
           <span className={`nums ml-auto ${thirdsOfficial ? "text-gold" : "text-live"}`}>
             +{detail.thirds}
