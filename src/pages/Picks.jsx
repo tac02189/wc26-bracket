@@ -6,6 +6,7 @@ import { useLockedAutosave } from "../lib/autosave";
 import { GROUP_LETTERS, TEAMS, THIRDS_ADVANCING_COUNT } from "../data/tournament";
 import { GROUP_LOCK_AT } from "../data/schedule";
 import GroupCard from "../components/GroupCard";
+import GroupResults from "../components/GroupResults";
 import ThirdsPicker from "../components/ThirdsPicker";
 import CountdownBanner from "../components/CountdownBanner";
 import SaveStatus from "../components/SaveStatus";
@@ -17,6 +18,8 @@ export default function Picks() {
   const { user } = useAuth();
   // An admin-granted late-pick grace pushes this user's effective lock forward.
   const { data: grace } = useDoc(`pickGrace/${user.uid}`);
+  // Once locked, pull live standings so picks can be shown next to current results.
+  const { data: resultsGroups } = useDoc(Date.now() >= GROUP_LOCK_AT ? "results/groups" : null);
   const effectiveLock = Math.max(GROUP_LOCK_AT, grace?.until?.toMillis?.() ?? 0);
   const {
     value: picks,
@@ -121,17 +124,21 @@ export default function Picks() {
         )}
       </div>
 
-      {GROUP_LETTERS.map((g) => (
-        <GroupCard
-          key={g}
-          letter={g}
-          order={picks.groups[g] ?? []}
-          disabled={locked}
-          onChange={(order) =>
-            change((prev) => ({ ...prev, groups: { ...prev.groups, [g]: order } }))
-          }
-        />
-      ))}
+      {locked && resultsGroups?.standings ? (
+        <GroupResults picks={picks} standings={resultsGroups.standings} />
+      ) : (
+        GROUP_LETTERS.map((g) => (
+          <GroupCard
+            key={g}
+            letter={g}
+            order={picks.groups[g] ?? []}
+            disabled={locked}
+            onChange={(order) =>
+              change((prev) => ({ ...prev, groups: { ...prev.groups, [g]: order } }))
+            }
+          />
+        ))
+      )}
 
       <ThirdsPicker
         thirdByGroup={thirdByGroup}
