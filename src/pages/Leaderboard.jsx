@@ -40,18 +40,18 @@ function PickDetail({ row, results }) {
           const pts = detail.groups?.[g] ?? 0;
           const complete = rg?.groupComplete?.[g];
           const st = rg?.standings?.[g];
-          // Actual top 2 once the group is being scored — a picked team landing
-          // here earns points (exact slot or right-team-wrong-slot), so we light
-          // it up. Empty until the group is complete or fully live.
-          const top2 =
-            complete || groupEveryonePlayed(st) ? (st ?? []).slice(0, 2).map((r) => r.code) : [];
+          // Actual top 3 once the group is being scored — a top-2 pick landing
+          // here earns points (top-2 exact/wrong-slot, or the 3rd-place
+          // consolation), so we light it up. Empty until complete or fully live.
+          const scorers =
+            complete || groupEveryonePlayed(st) ? (st ?? []).slice(0, 3).map((r) => r.code) : [];
           return (
             <div key={g} className="flex items-center gap-1.5">
               <span className="font-display font-bold text-dim w-3">{g}</span>
               {picked?.length === 4 ? (
                 <>
                   {picked.slice(0, 2).map((c) => {
-                    const hit = top2.includes(c);
+                    const hit = scorers.includes(c);
                     return (
                       <span key={c} className="flex items-center gap-1">
                         <Flag code={c} size={16} />
