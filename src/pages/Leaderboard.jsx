@@ -32,7 +32,7 @@ function pickTier(code, slot, actual) {
 
 const GROUP_PICK_CLASS = {
   exact: "font-bold text-ink", // spot-on, full points
-  wrong: "text-ink/75", // in the top 2 but wrong slot (1 pt)
+  wrong: "font-semibold text-bronze", // in the top 2 but wrong slot (1 pt) — bronze
   miss: "text-dim/55", // no points
   pending: "text-dim/70", // group not scored yet
 };
@@ -95,7 +95,7 @@ function PickDetail({ row, results }) {
           <b className="font-bold text-ink">Bold</b> = exact (3)
         </span>
         <span>
-          <span className="text-ink/75">Faded</span> = wrong slot (1)
+          <span className="font-semibold text-bronze">Bronze</span> = wrong slot (1)
         </span>
       </div>
       <div className="flex flex-wrap items-center gap-1.5 text-xs">
