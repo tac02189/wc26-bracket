@@ -17,6 +17,28 @@ import Flag from "../components/Flag";
 // scores live against results. A league just narrows the field — same picks,
 // same scores, ranks recomputed within the chosen members.
 
+// How a single displayed group pick fared, mirroring scoreGroup exactly so the
+// emphasis tracks the points: exact slot (full), right team in the top 2 but the
+// wrong slot (1), the 3rd-place consolation (1), or a plain miss. `actual` is the
+// real finishing order, or null until the group is being scored.
+function pickTier(code, slot, actual) {
+  if (!actual) return "pending";
+  const exactSlot = slot === 0 ? actual[0] : actual[1];
+  const otherSlot = slot === 0 ? actual[1] : actual[0];
+  if (code === exactSlot) return "exact";
+  if (code === otherSlot) return "wrong";
+  if (code === actual[2]) return "third";
+  return "miss";
+}
+
+const GROUP_PICK_CLASS = {
+  exact: "font-bold text-ink", // spot-on, full points
+  wrong: "text-ink/75", // in the top 2 but wrong slot (1 pt)
+  third: "text-ink/75", // consolation — finished 3rd (1 pt)
+  miss: "text-dim/55", // no points
+  pending: "text-dim/70", // group not scored yet
+};
+
 function PickDetail({ row, results }) {
   const detail = row.score?.detail ?? { groups: {}, thirds: 0 };
   const rg = results?.groups;
@@ -40,22 +62,25 @@ function PickDetail({ row, results }) {
           const pts = detail.groups?.[g] ?? 0;
           const complete = rg?.groupComplete?.[g];
           const st = rg?.standings?.[g];
-          // Actual top 3 once the group is being scored — a top-2 pick landing
-          // here earns points (top-2 exact/wrong-slot, or the 3rd-place
-          // consolation), so we light it up. Empty until complete or fully live.
-          const scorers =
-            complete || groupEveryonePlayed(st) ? (st ?? []).slice(0, 3).map((r) => r.code) : [];
+          // Real finishing order once the group is being scored, else null — each
+          // pick is then graded against it (see pickTier) so spot-on (3) reads
+          // differently from a wrong-slot / 3rd-place consolation (1).
+          const actual =
+            complete || groupEveryonePlayed(st) ? (st ?? []).map((r) => r.code) : null;
           return (
             <div key={g} className="flex items-center gap-1.5">
               <span className="font-display font-bold text-dim w-3">{g}</span>
               {picked?.length === 4 ? (
                 <>
-                  {picked.slice(0, 2).map((c) => {
-                    const hit = scorers.includes(c);
+                  {picked.slice(0, 2).map((c, i) => {
+                    const tier = pickTier(c, i, actual);
                     return (
                       <span key={c} className="flex items-center gap-1">
                         <Flag code={c} size={16} />
-                        <span className={hit ? "font-bold text-ink" : "text-dim/70"}>{c}</span>
+                        <span className={GROUP_PICK_CLASS[tier]}>
+                          {c}
+                          {tier === "third" && <sup className="text-gold/90">3</sup>}
+                        </span>
                       </span>
                     );
                   })}
@@ -69,6 +94,20 @@ function PickDetail({ row, results }) {
             </div>
           );
         })}
+      </div>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] text-dim">
+        <span>
+          <b className="font-bold text-ink">Bold</b> = exact (3)
+        </span>
+        <span>
+          <span className="text-ink/75">Faded</span> = wrong slot (1)
+        </span>
+        <span>
+          <span className="text-ink/75">
+            Faded<sup className="text-gold/90">3</sup>
+          </span>{" "}
+          = 3rd (1)
+        </span>
       </div>
       <div className="flex flex-wrap items-center gap-1.5 text-xs">
         <span className="font-display font-bold text-dim">THIRDS</span>
