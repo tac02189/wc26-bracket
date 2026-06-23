@@ -10,13 +10,34 @@ import { FD_TEAM_MAP, isMapComplete } from "./team-map.mjs";
 
 const API = "https://api.football-data.org/v4/competitions/WC";
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// football-data occasionally resets the connection (ECONNRESET) or returns a
+// transient 5xx/429; both self-heal on retry. Without this a single blip fails
+// the whole run and emails a false alarm. Deterministic 4xx (bad token/path)
+// is NOT retried — it won't fix itself, so fail fast and loud as before.
 async function fd(path) {
-  const res = await fetch(`${API}${path}`, {
-    // .trim() also drops a leading BOM (U+FEFF), which is illegal in a header.
-    headers: { "X-Auth-Token": process.env.FOOTBALL_DATA_TOKEN.trim() },
-  });
-  if (!res.ok) throw new Error(`football-data ${path} -> HTTP ${res.status}`);
-  return res.json();
+  const MAX = 4;
+  for (let attempt = 1; ; attempt++) {
+    let res;
+    try {
+      res = await fetch(`${API}${path}`, {
+        // .trim() also drops a leading BOM (U+FEFF), which is illegal in a header.
+        headers: { "X-Auth-Token": process.env.FOOTBALL_DATA_TOKEN.trim() },
+      });
+    } catch (err) {
+      // Network-level failure (ECONNRESET/ETIMEDOUT/DNS) — retry with backoff.
+      if (attempt >= MAX) throw err;
+      await sleep(1000 * 2 ** (attempt - 1)); // 1s, 2s, 4s
+      continue;
+    }
+    if (res.ok) return res.json();
+    const retryable = res.status === 429 || res.status >= 500;
+    if (!retryable || attempt >= MAX) {
+      throw new Error(`football-data ${path} -> HTTP ${res.status}`);
+    }
+    await sleep(1000 * 2 ** (attempt - 1)); // 1s, 2s, 4s
+  }
 }
 
 const code = (team) => {
