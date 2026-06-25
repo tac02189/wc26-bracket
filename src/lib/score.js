@@ -16,7 +16,11 @@ const codes = (rows) => (rows ?? []).map((r) => (typeof r === "string" ? r : r.c
 export const groupEveryonePlayed = (standings) =>
   standings?.length === 4 && standings.every((r) => (r.played ?? 0) >= 1);
 
-// Winner exact, runner-up exact, or right team in the top 2 but the wrong slot.
+// Winner exact, runner-up exact, right team in the top 2 but the wrong slot, or
+// a consolation point when a team you ranked top-2 only manages 3rd (a[2]).
+// (At most one top-2 pick can equal the single 3rd-place team, so the consolation
+// caps at +1/group and can't co-occur with that same team also scoring as a
+// top-2 finish — it never lifts a group above its 6-point max.)
 export function scoreGroup(pickedOrder, actualOrder, s = SCORING) {
   const p = pickedOrder ?? [];
   const a = codes(actualOrder);
@@ -26,6 +30,8 @@ export function scoreGroup(pickedOrder, actualOrder, s = SCORING) {
   if (p[1] === a[1]) pts += s.runnerUp;
   if (p[0] === a[1]) pts += s.top2WrongSlot;
   if (p[1] === a[0]) pts += s.top2WrongSlot;
+  if (p[0] === a[2]) pts += s.top2ToThird;
+  if (p[1] === a[2]) pts += s.top2ToThird;
   return pts;
 }
 

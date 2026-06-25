@@ -5,7 +5,8 @@ import { GROUP_LETTERS } from "../data/tournament";
 // LIVE position colors mirror the advancement meaning used on the Picks editor
 // (1st gold, 2nd azul, 3rd bronze "thirds race", 4th out). In the MY PICK column
 // a team is bold-white when it sits in that exact live spot, bronze when it's in
-// the live top 2 but a different slot, dim otherwise — same language as the
+// the live top 2 but a different slot — or bronze with a ³ when a top-2 pick has
+// slipped to 3rd (the consolation point) — dim otherwise, same language as the
 // leaderboard breakdown.
 const ZONE = ["text-gold", "text-azul", "text-bronze", "text-dim/70"];
 
@@ -44,6 +45,9 @@ export default function GroupResults({ picks, standings }) {
                     const code = mine[i];
                     const exact = code && code === liveCodes[i];
                     const advancing = code && liveTop2.includes(code);
+                    // A top-2 pick that's slipped to live 3rd earns the
+                    // consolation point — bronze with a ³, mirroring the breakdown.
+                    const third = code && i < 2 && code === liveCodes[2];
                     return (
                       <Cell key={i}>
                         <span className="nums w-3 shrink-0 text-xs text-dim">{i + 1}</span>
@@ -54,12 +58,13 @@ export default function GroupResults({ picks, standings }) {
                               className={
                                 exact
                                   ? "font-bold text-ink"
-                                  : advancing
+                                  : advancing || third
                                     ? "font-semibold text-bronze"
                                     : "text-dim/70"
                               }
                             >
                               {code}
+                              {third && <sup className="text-gold/90">3</sup>}
                             </span>
                             {exact && <span className="ml-auto text-xs text-live">✓</span>}
                           </>
