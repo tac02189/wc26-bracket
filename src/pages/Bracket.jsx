@@ -1,21 +1,32 @@
-import { useMemo, useState } from "react";
-import { GitBranch, Trophy } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Check, ChevronLeft, ChevronRight, GitBranch, Trophy } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useDoc } from "../lib/hooks";
 import { useLockedAutosave } from "../lib/autosave";
 import { TEAMS } from "../data/tournament";
 import { BRACKET_LOCK_AT, GROUP_STAGE_ENDS } from "../data/schedule";
-import { FEEDS, ROUNDS, sanitizeWinners, slotOf, teamsOf } from "../data/bracketStructure";
+import { BRACKET_ORDERS, FEEDS, ROUNDS, sanitizeWinners, slotOf, teamsOf } from "../data/bracketStructure";
 import CountdownBanner from "../components/CountdownBanner";
 import SaveStatus from "../components/SaveStatus";
 import Flag from "../components/Flag";
 
-function TeamRow({ code, ghost, picked, out, disabled, onPick }) {
+const SH = 470; // bracket viewport height
+const PT = 88; // vertical pitch between focused-round match cards
+const CARD_H = 78; // match-card height (so connectors meet the card's middle)
+
+const kickoffLabel = (iso) =>
+  iso
+    ? new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
+    : "";
+
+// One side of a focused-round match. A real team is a tap target; an unresolved
+// feeder is a dim "Winner of M__" ghost.
+function FocusRow({ code, ghost, picked, out, disabled, onPick }) {
   if (!code) {
     return (
-      <div className="flex items-center gap-2 px-3 py-2.5 text-sm text-dim">
-        <span className="h-[18px] w-6 rounded-[2px] bg-panel2" />
-        {ghost}
+      <div className="flex h-[30px] items-center gap-2 px-2.5 text-sm text-dim/60">
+        <span className="h-[15px] w-5 shrink-0 rounded-[2px] bg-panel2" />
+        <span className="truncate">{ghost}</span>
       </div>
     );
   }
@@ -23,13 +34,13 @@ function TeamRow({ code, ghost, picked, out, disabled, onPick }) {
     <button
       disabled={disabled}
       onClick={onPick}
-      className={`flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm transition-colors ${
-        picked ? "bg-gold/10 text-ink" : out ? "text-dim/70 line-through" : "text-dim"
+      className={`flex h-[30px] w-full items-center gap-2 px-2.5 text-left text-sm transition-colors ${
+        picked ? "bg-gold/10 font-bold text-ink" : out ? "text-dim/60 line-through" : "text-dim"
       } ${disabled ? "cursor-default" : "active:bg-panel2"}`}
     >
-      <Flag code={code} size={24} />
+      <Flag code={code} size={20} />
       <span className="flex-1 truncate">{TEAMS[code].name}</span>
-      {picked && <span className="text-[10px] font-bold tracking-widest text-gold">ADV</span>}
+      {picked && <Check size={14} className="shrink-0 text-gold" />}
     </button>
   );
 }
@@ -37,7 +48,8 @@ function TeamRow({ code, ghost, picked, out, disabled, onPick }) {
 export default function Bracket() {
   const { user } = useAuth();
   const { data: knockout, loading: koLoading } = useDoc("results/knockout");
-  const [round, setRound] = useState("R32");
+  const [focus, setFocus] = useState(0); // index into ROUNDS — the zoomed-in round
+  const [dir, setDir] = useState(1); // slide direction for the round transition
 
   const koMatches = knockout?.matches;
   const {
@@ -61,13 +73,69 @@ export default function Bracket() {
     [koMatches]
   );
 
+  // Measure the viewport so the card / peek / connectors scale to the phone
+  // width (the shell is max-w-md, but real phones run 320–448px).
+  const vpRef = useRef(null);
+  const [vw, setVw] = useState(360);
+  useEffect(() => {
+    const el = vpRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setVw(el.clientWidth));
+    ro.observe(el);
+    setVw(el.clientWidth);
+    return () => ro.disconnect();
+  }, [r32Ready]);
+
+  // Horizontal swipe jumps round to round; vertical scrolls within a round.
+  // `moved` keeps a horizontal drag from also registering as a pick.
+  const drag = useRef({ down: false, sx: 0, sy: 0, axis: null });
+  const moved = useRef(false);
+  useEffect(() => {
+    const onMove = (e) => {
+      const d = drag.current;
+      if (!d.down) return;
+      const dx = e.clientX - d.sx;
+      const dy = e.clientY - d.sy;
+      if (!d.axis && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) d.axis = Math.abs(dx) > Math.abs(dy) ? "h" : "v";
+      if (d.axis === "h" && Math.abs(dx) > 10) moved.current = true;
+    };
+    const onUp = (e) => {
+      const d = drag.current;
+      if (!d.down) return;
+      d.down = false;
+      if (d.axis === "h") {
+        const dx = e.clientX - d.sx;
+        if (dx < -45) go(1);
+        else if (dx > 45) go(-1);
+      }
+      setTimeout(() => (moved.current = false), 0);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+  }, []);
+
+  function go(delta) {
+    setDir(delta);
+    setFocus((f) => Math.max(0, Math.min(ROUNDS.length - 1, f + delta)));
+  }
+
   function pick(n, code) {
-    if (locked || !code || !winners) return;
+    if (locked || !code || !winners || moved.current) return;
     const slot = slotOf(n);
     const draft = { ...winners };
     if (draft[slot] === code) delete draft[slot];
     else draft[slot] = code;
-    update(sanitizeWinners(draft, koMatches));
+    const next = sanitizeWinners(draft, koMatches);
+    update(next);
+    // Carry the user to the next round once this one is fully picked.
+    const cur = ROUNDS[focus];
+    const wasDone = cur.matches.every((m) => winners[slotOf(m)]);
+    const justDone = cur.matches.every((m) => next[slotOf(m)]);
+    if (justDone && !wasDone && focus < ROUNDS.length - 1) setTimeout(() => go(1), 480);
   }
 
   if (!r32Ready) {
@@ -107,8 +175,29 @@ export default function Bracket() {
     return <p className="py-16 text-center text-dim">Loading the bracket…</p>;
   }
 
-  const currentRound = ROUNDS.find((r) => r.key === round) ?? ROUNDS[0];
+  const RKEYS = ROUNDS.map((r) => r.key);
+  const focusKey = RKEYS[focus];
+  const fo = BRACKET_ORDERS[focusKey];
+  const nextKey = RKEYS[focus + 1];
+  const no = nextKey ? BRACKET_ORDERS[nextKey] : null;
+
+  const blockH = fo.length * PT;
+  const top = Math.max(10, (SH - blockH) / 2);
+  const H = Math.max(SH, blockH + 20);
+  const cen = (i) => top + i * PT + CARD_H / 2;
+
+  // Responsive geometry: focused card on the left, next round peeking on the
+  // right with the connectors bridging the gap.
+  const fcLeft = 6;
+  const fcW = Math.round(vw * 0.64);
+  const fcRight = fcLeft + fcW;
+  const pkLeft = fcRight + 30;
+  const pkW = Math.round(vw * 0.3);
+  const midX = (fcRight + pkLeft) / 2;
+
   const champion = winners?.M104;
+  const filled = (key) => BRACKET_ORDERS[key].filter((n) => winners?.[slotOf(n)]).length;
+  const stroke = (n) => (winners?.[slotOf(n)] ? "var(--color-bronze)" : "var(--color-line)");
 
   return (
     <div className="space-y-3">
@@ -121,88 +210,172 @@ export default function Bracket() {
 
       <CountdownBanner lockAt={BRACKET_LOCK_AT} label="Bracket locks in" />
 
-      <div className="sticky top-[env(safe-area-inset-top)] z-10 -mx-3 bg-pitch/95 px-3 py-2 backdrop-blur">
-        <div className="grid grid-cols-5 gap-1">
-          {ROUNDS.map((r) => {
-            const filled = r.matches.filter((n) => winners?.[slotOf(n)]).length;
-            return (
-              <button
-                key={r.key}
-                onClick={() => setRound(r.key)}
-                className={`rounded-lg border px-1 py-1.5 text-center ${
-                  round === r.key ? "border-gold bg-gold/10 text-gold" : "border-line text-dim"
-                }`}
-              >
-                <div className="font-display font-bold text-sm leading-none">{r.key}</div>
-                <div className="nums text-[10px]">
-                  {filled}/{r.matches.length}
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        {currentRound.matches.map((n) => {
-          const slot = slotOf(n);
-          const [home, away] = teamsOf(n, koMatches, winners);
-          const pickHere = winners?.[slot];
-          const [f1, f2] = FEEDS[n] ?? [];
-          return (
-            <div key={n} className="overflow-clip rounded-xl border border-line bg-panel">
-              <div className="flex items-center justify-between border-b border-line/60 bg-panel2/50 px-3 py-1">
-                <span className="nums text-[11px] font-bold tracking-widest text-dim">
-                  MATCH {n}
-                </span>
-                {koMatches[slot]?.kickoff && (
-                  <span className="text-[11px] text-dim/80">
-                    {new Date(koMatches[slot].kickoff).toLocaleString(undefined, {
-                      month: "short",
-                      day: "numeric",
-                      hour: "numeric",
-                      minute: "2-digit",
-                    })}
-                  </span>
-                )}
-              </div>
-              <TeamRow
-                code={home}
-                ghost={f1 ? `Winner of Match ${f1}` : "TBD"}
-                picked={pickHere && pickHere === home}
-                out={pickHere && pickHere !== home}
-                disabled={locked}
-                onPick={() => pick(n, home)}
-              />
-              <div className="border-t border-line/40" />
-              <TeamRow
-                code={away}
-                ghost={f2 ? `Winner of Match ${f2}` : "TBD"}
-                picked={pickHere && pickHere === away}
-                out={pickHere && pickHere !== away}
-                disabled={locked}
-                onPick={() => pick(n, away)}
-              />
+      <div className="grid grid-cols-5 gap-1">
+        {ROUNDS.map((r, i) => (
+          <button
+            key={r.key}
+            onClick={() => {
+              setDir(i > focus ? 1 : -1);
+              setFocus(i);
+            }}
+            className={`rounded-lg border px-1 py-1.5 text-center ${
+              i === focus ? "border-gold bg-gold/10 text-gold" : "border-line text-dim"
+            }`}
+          >
+            <div className="font-display font-bold text-sm leading-none">{r.key}</div>
+            <div className="nums text-[10px]">
+              {filled(r.key)}/{r.matches.length}
             </div>
-          );
-        })}
+          </button>
+        ))}
       </div>
 
-      {round === "F" && (
-        <div className="rounded-xl border border-gold/40 bg-gold/10 px-4 py-4 text-center">
-          <Trophy size={24} className="mx-auto mb-1 text-gold" />
-          {champion ? (
-            <p className="font-display font-bold text-2xl">
-              YOUR CHAMPION: <span className="text-gold">{TEAMS[champion].name}</span>
-            </p>
-          ) : (
-            <p className="text-sm text-dim">Pick the winner of the Final to crown your champion.</p>
-          )}
-        </div>
-      )}
+      <div className="relative overflow-hidden rounded-xl border border-line bg-pitch/40" style={{ height: SH }}>
+        <div
+          ref={vpRef}
+          onPointerDown={(e) => {
+            const d = drag.current;
+            d.down = true;
+            d.sx = e.clientX;
+            d.sy = e.clientY;
+            d.axis = null;
+            moved.current = false;
+          }}
+          className="absolute inset-0 overflow-y-auto overflow-x-hidden [scrollbar-width:none] [touch-action:pan-y]"
+        >
+          <div
+            key={focus}
+            className="animate-bracket-in relative"
+            style={{ height: H, "--bx": dir > 0 ? "30px" : "-30px" }}
+          >
+            <svg
+              width={vw}
+              height={H}
+              viewBox={`0 0 ${vw} ${H}`}
+              className="pointer-events-none absolute left-0 top-0"
+            >
+              {no
+                ? no.map((m, j) => {
+                    const a = fo[2 * j];
+                    const b = fo[2 * j + 1];
+                    const ay = cen(2 * j);
+                    const by = cen(2 * j + 1);
+                    const py = (ay + by) / 2;
+                    return (
+                      <g key={m}>
+                        <path d={`M${fcRight} ${ay} H${midX} V${py}`} fill="none" strokeWidth="1.6" stroke={stroke(a)} />
+                        <path d={`M${fcRight} ${by} H${midX} V${py}`} fill="none" strokeWidth="1.6" stroke={stroke(b)} />
+                        <path d={`M${midX} ${py} H${pkLeft}`} fill="none" strokeWidth="1.6" stroke="var(--color-line)" />
+                      </g>
+                    );
+                  })
+                : (
+                    <path
+                      d={`M${fcRight} ${cen(0)} H${pkLeft}`}
+                      fill="none"
+                      strokeWidth="1.6"
+                      stroke={champion ? "var(--color-gold)" : "var(--color-line)"}
+                    />
+                  )}
+            </svg>
 
-      <p className="pb-4 text-center text-xs text-dim/80">
-        Changing an early pick clears any later picks that depended on it.
+            {fo.map((n, i) => {
+              const slot = slotOf(n);
+              const [home, away] = teamsOf(n, koMatches, winners);
+              const pickHere = winners?.[slot];
+              const [f1, f2] = FEEDS[n] ?? [];
+              return (
+                <div
+                  key={n}
+                  className="absolute overflow-hidden rounded-lg border border-line bg-panel"
+                  style={{ left: fcLeft, width: fcW, top: top + i * PT }}
+                >
+                  <div className="flex h-[18px] items-center justify-between border-b border-line/60 bg-panel2/50 px-2.5">
+                    <span className="nums text-[10px] font-bold tracking-widest text-dim">M{n}</span>
+                    <span className="text-[10px] text-dim/80">{kickoffLabel(koMatches[slot]?.kickoff)}</span>
+                  </div>
+                  <FocusRow
+                    code={home}
+                    ghost={f1 ? `Winner of M${f1}` : "TBD"}
+                    picked={pickHere && pickHere === home}
+                    out={pickHere && pickHere !== home}
+                    disabled={locked}
+                    onPick={() => pick(n, home)}
+                  />
+                  <div className="h-px bg-line/40" />
+                  <FocusRow
+                    code={away}
+                    ghost={f2 ? `Winner of M${f2}` : "TBD"}
+                    picked={pickHere && pickHere === away}
+                    out={pickHere && pickHere !== away}
+                    disabled={locked}
+                    onPick={() => pick(n, away)}
+                  />
+                </div>
+              );
+            })}
+
+            {no
+              ? no.map((m, j) => {
+                  const py = (cen(2 * j) + cen(2 * j + 1)) / 2;
+                  const [h, a] = teamsOf(m, koMatches, winners);
+                  return (
+                    <button
+                      key={m}
+                      onClick={() => {
+                        if (moved.current) return;
+                        setDir(1);
+                        setFocus(focus + 1);
+                      }}
+                      className="absolute rounded-lg border border-line bg-panel/60 px-2 py-1 text-left"
+                      style={{ left: pkLeft, width: pkW, top: py - 20 }}
+                    >
+                      <div className="font-display text-[9px] font-bold tracking-wide text-dim">{nextKey}</div>
+                      {[h, a].map((c, k) => (
+                        <div
+                          key={k}
+                          className={`flex items-center gap-1.5 truncate text-[11px] ${c ? "text-ink" : "text-dim/50"}`}
+                        >
+                          {c ? <Flag code={c} size={14} /> : <span className="h-3 w-4 shrink-0 rounded-[1px] bg-panel2" />}
+                          {c ?? "—"}
+                        </div>
+                      ))}
+                    </button>
+                  );
+                })
+              : (
+                  <div
+                    className="absolute rounded-lg border border-gold/40 bg-gold/10 px-3 py-3 text-center"
+                    style={{ left: pkLeft - 4, width: pkW + 14, top: cen(0) - 30 }}
+                  >
+                    <Trophy size={20} className="mx-auto text-gold" />
+                    {champion ? (
+                      <div className="mt-1 font-display font-bold text-sm text-gold">{TEAMS[champion].name}</div>
+                    ) : (
+                      <div className="mt-1 text-[10px] text-dim">Champion</div>
+                    )}
+                  </div>
+                )}
+          </div>
+        </div>
+
+        {[-1, 1].map((d) => (
+          <button
+            key={d}
+            disabled={focus + d < 0 || focus + d > ROUNDS.length - 1}
+            onClick={() => go(d)}
+            style={{ [d < 0 ? "left" : "right"]: 4 }}
+            className="absolute top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-full border border-line bg-panel/90 text-gold disabled:opacity-25"
+            aria-label={d < 0 ? "Previous round" : "Next round"}
+          >
+            {d < 0 ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
+          </button>
+        ))}
+      </div>
+
+      <p className="text-center text-xs text-dim/80">
+        Swipe or tap a round to move across the bracket. Changing an early pick clears any later picks that
+        depended on it.
       </p>
     </div>
   );

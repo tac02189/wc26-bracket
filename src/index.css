@@ -41,3 +41,18 @@ select {
 .nums {
   font-variant-numeric: tabular-nums;
 }
+
+/* Bracket round transition — focused round slides in from the swipe direction */
+@keyframes bracket-in {
+  from {
+    opacity: 0.4;
+    transform: translateX(var(--bx, 0));
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.animate-bracket-in {
+  animation: bracket-in 0.3s cubic-bezier(0.3, 0.7, 0.3, 1);
+}

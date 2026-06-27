@@ -54,3 +54,16 @@ export function sanitizeWinners(winners, koMatches) {
   }
   return next;
 }
+
+// Display order for a bracket-tree layout: each round listed so the two feeders
+// of every next-round match sit at adjacent positions (2j and 2j+1). Built by
+// expanding the Final down through FEEDS, so it stays correct if the official
+// progression ever changes. Keyed by round: { R32:[…16], R16:[…8], …, F:[104] }.
+export const BRACKET_ORDERS = (() => {
+  const last = ROUNDS[ROUNDS.length - 1];
+  const orders = { [last.key]: [...last.matches] };
+  for (let i = ROUNDS.length - 2; i >= 0; i--) {
+    orders[ROUNDS[i].key] = orders[ROUNDS[i + 1].key].flatMap((p) => FEEDS[p]);
+  }
+  return orders;
+})();
