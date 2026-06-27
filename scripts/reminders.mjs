@@ -104,24 +104,48 @@ async function claim(db, key) {
   });
 }
 
+// Full HTML document (not a bare div) so we can declare the email dark-native —
+// without `color-scheme: dark` Gmail's phone dark mode deepens the greens into a
+// muddy block. Contrast is built in too: a lighter panel2 card on the darker
+// pitch background, a gold top bar + headline underline, and the app's condensed
+// display font (Barlow Condensed, Arial Narrow fallback) for the brand/headline.
 function htmlShell(headline, bodyHtml, ctaLabel) {
-  return `<div style="margin:0;padding:24px 12px;background:#013d23;font-family:Arial,Helvetica,sans-serif;">
-  <div style="max-width:480px;margin:0 auto;background:#0a512f;border:1px solid #1a6340;border-radius:14px;overflow:hidden;">
-    <div style="padding:18px 24px;border-bottom:1px solid #1a6340;">
-      <span style="font-size:22px;font-weight:800;letter-spacing:1px;color:#f3faf5;">WC<span style="color:#ffdf00;">26</span> POOL</span>
-    </div>
-    <div style="padding:24px;color:#f3faf5;font-size:15px;line-height:1.6;">
-      <h1 style="margin:0 0 14px;font-size:20px;color:#ffdf00;">${headline}</h1>
-      ${bodyHtml}
-      <div style="margin:24px 0 4px;">
-        <a href="${APP_URL}" style="display:inline-block;background:#ffdf00;color:#013d23;font-weight:700;text-decoration:none;padding:12px 22px;border-radius:10px;">${ctaLabel}</a>
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="supported-color-schemes" content="dark">
+<title>WC26 Pool</title>
+<style>
+  :root { color-scheme: dark; supported-color-schemes: dark; }
+  @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&display=swap');
+  body { margin:0 !important; padding:0 !important; background:#013d23; }
+</style>
+</head>
+<body style="margin:0;padding:0;background:#013d23;">
+  <div style="padding:24px 12px;background:#013d23;font-family:Arial,Helvetica,sans-serif;">
+    <div style="max-width:480px;margin:0 auto;background:#0f5e38;border:1px solid #2a7d52;border-radius:14px;overflow:hidden;">
+      <div style="height:4px;line-height:4px;font-size:4px;background:#ffdf00;">&nbsp;</div>
+      <div style="padding:18px 24px;background:#0a512f;border-bottom:1px solid #1a6340;">
+        <span style="font-family:'Barlow Condensed','Arial Narrow',Arial,sans-serif;font-size:26px;font-weight:700;letter-spacing:1.5px;color:#ffffff;">WC<span style="color:#ffdf00;">26</span> POOL</span>
+      </div>
+      <div style="padding:24px;color:#f3faf5;font-size:15px;line-height:1.6;">
+        <h1 style="margin:0 0 8px;font-family:'Barlow Condensed','Arial Narrow',Arial,sans-serif;font-size:23px;font-weight:700;letter-spacing:.4px;color:#ffdf00;">${headline}</h1>
+        <div style="width:40px;height:3px;border-radius:2px;background:#ffdf00;margin:0 0 16px;"></div>
+        ${bodyHtml}
+        <div style="margin:24px 0 4px;">
+          <a href="${APP_URL}" style="display:inline-block;background:#ffdf00;color:#013d23;font-weight:700;text-decoration:none;padding:13px 24px;border-radius:10px;font-size:15px;">${ctaLabel}</a>
+        </div>
+      </div>
+      <div style="padding:14px 24px;background:#0a512f;border-top:1px solid #1a6340;color:#a7cbb8;font-size:12px;">
+        Reply “stop” to opt out of these reminders.
       </div>
     </div>
-    <div style="padding:14px 24px;border-top:1px solid #1a6340;color:#a7cbb8;font-size:12px;">
-      Reply “stop” to opt out of these reminders.
-    </div>
   </div>
-</div>`;
+</body>
+</html>`;
 }
 
 export function buildBracketOpen({ name }) {
