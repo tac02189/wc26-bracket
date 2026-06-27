@@ -19,8 +19,9 @@ React 18 + Vite + Tailwind v4 (`@tailwindcss/vite`, theme tokens in
 
 Key invariants:
 - **Lock times are enforced in `firestore.rules`** (hardcoded `request.time`
-  comparisons) and mirrored in `src/data/schedule.js`. Change one → change both
-  → `firebase deploy --only firestore:rules`.
+  comparisons) and mirrored in `src/data/schedule.js` AND in
+  `scripts/reminders.mjs` (`BRACKET_LOCK_AT`, for the "2h to lock" email). Change
+  one → change all three → `firebase deploy --only firestore:rules`.
 - **Rules are not filters**: never run collection queries over `groupPicks`/
   `bracketPicks` before the corresponding lock has passed — gate on lock time.
 - Scoring values live ONLY in `src/data/scoring.js`; the Rules page renders
@@ -57,6 +58,22 @@ Official third-place advancers derive from who appears in the real R32
 fixtures, never from a computed table. Admin page (Thiago's UID in
 `config/settings.adminUid` + `firestore.rules`) writes the same shapes — full
 manual fallback.
+
+## Reminder emails (v1.2)
+
+`.github/workflows/reminders.yml` cron (every 15 min) → `scripts/reminders.mjs`
+→ Gmail SMTP (nodemailer). Two one-shot emails, each guarded by a flag in
+`config/reminders` claimed in a transaction BEFORE sending (at-most-once; the
+repeating cron can't double-send): **(1)** "bracket is open" to everyone with a
+real verified email, fired when `config/settings.phase === "bracket-open"`;
+**(2)** "2h to lock" fired inside the 2h window before `BRACKET_LOCK_AT`, sent
+ONLY to uids whose `bracketPicks` doc isn't complete (all 31 slots filled —
+mirrors `PICKABLE` in `src/data/bracketStructure.js`). Recipients come from
+`admin.auth().listUsers()`; PIN accounts (synthetic `@wc26pool.app`, unverified)
+are filtered out, as is anyone with `users/{uid}.emailOptOut === true`. Secrets
+`GMAIL_USER` + `GMAIL_APP_PASSWORD` live only in GitHub Actions (Gmail account
+needs 2-Step Verification + an app password). Re-run via the workflow's "Run
+workflow" button after clearing the relevant `config/reminders` flag to resend.
 
 ## Deploy
 
