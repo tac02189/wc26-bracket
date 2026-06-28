@@ -203,6 +203,19 @@ export function buildLockSoon({ name }) {
   return { subject: "Last call — lock your WC26 bracket today", text, html };
 }
 
+// Mirrors r32Ready in src/pages/Bracket.jsx: the tab only opens once every R32
+// match has BOTH teams. football-data fills the third-place slots late, so
+// config/settings.phase can read "bracket-open" while the bracket is still gated
+// for users — don't announce it until it's genuinely fillable.
+async function r32Ready(db) {
+  const m = (await db.doc("results/knockout").get()).data()?.matches || {};
+  for (let n = 73; n <= 88; n++) {
+    const x = m[`M${n}`];
+    if (!x || !x.home || !x.away) return false;
+  }
+  return true;
+}
+
 async function sendAll(transport, from, recipients, build) {
   let sent = 0;
   const failures = [];
@@ -253,11 +266,15 @@ async function main() {
 
   const failures = [];
 
-  if (wantBracketOpen && (await claim(db, "bracketOpenSent"))) {
-    const recipients = await audience();
-    const { sent, failures: f } = await sendAll(transport, from, recipients, buildBracketOpen);
-    console.log(`bracket-open: sent ${sent}/${recipients.length}`);
-    failures.push(...f);
+  if (wantBracketOpen) {
+    if (!(await r32Ready(db))) {
+      console.log("phase=bracket-open but the R32 draw isn't complete yet — holding the 'bracket is open' email");
+    } else if (await claim(db, "bracketOpenSent")) {
+      const recipients = await audience();
+      const { sent, failures: f } = await sendAll(transport, from, recipients, buildBracketOpen);
+      console.log(`bracket-open: sent ${sent}/${recipients.length}`);
+      failures.push(...f);
+    }
   }
 
   if (wantLockSoon && (await claim(db, "lockSoonSent"))) {
