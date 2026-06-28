@@ -177,6 +177,16 @@ async function main() {
   await db.doc("results/groups").set(groupsPayload, { merge: true });
 
   if (Object.keys(koBySlot).length > 0) {
+    // Teams are write-once. Slots here are numbered by kickoff order, which can
+    // drift from the FIFA match numbers the bracket FEEDS depend on (and the R32
+    // was seeded manually from the official draw). So once a slot has a team,
+    // never overwrite it — only winner/status/kickoff keep updating. This keeps
+    // a re-run or a late football-data update from re-slotting a known matchup.
+    const existing = (await db.doc("results/knockout").get()).data()?.matches ?? {};
+    for (const [slot, entry] of Object.entries(koBySlot)) {
+      if (existing[slot]?.home) delete entry.home;
+      if (existing[slot]?.away) delete entry.away;
+    }
     await db.doc("results/knockout").set(
       { matches: koBySlot, champion, updatedAt: FieldValue.serverTimestamp() },
       { merge: true }
