@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ChevronDown, ChevronUp, Eye, Trophy, Users } from "lucide-react";
+import { ArrowUp, ChevronDown, ChevronUp, Eye, Trophy, Users } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useCollection, useDoc } from "../lib/hooks";
 import {
@@ -53,6 +53,12 @@ function PickDetail({ row, results }) {
       ? computeProvisionalThirds(rg)
       : [];
   const thirdsHit = new Set(thirdsActual);
+  // A third you picked that instead finished top-2 in its group earns the
+  // consolation point (thirdToTop2). Same top-2 set the engine uses; only
+  // meaningful once thirds are scoreable (thirdsActual non-empty).
+  const top2 = new Set(
+    GROUP_LETTERS.flatMap((g) => (rg?.standings?.[g] ?? []).slice(0, 2).map((r) => r.code))
+  );
 
   return (
     <div className="space-y-2 border-t border-line/60 bg-pitch/40 px-3 py-3">
@@ -109,28 +115,47 @@ function PickDetail({ row, results }) {
           = 3rd (1)
         </span>
       </div>
-      <div className="flex flex-wrap items-center gap-1.5 text-xs">
-        <span className="font-display font-bold text-dim">THIRDS</span>
-        {(row.groupPicks?.thirds ?? []).map((c) => {
-          const hit = thirdsHit.has(c);
-          return (
-            <span
-              key={c}
-              className={`inline-flex items-center gap-1 rounded bg-panel2 px-1.5 py-0.5 ${
-                hit
-                  ? `font-bold text-ink ring-1 ${thirdsOfficial ? "ring-gold/40" : "ring-live/40"}`
-                  : "text-dim/70"
-              }`}
-            >
-              <Flag code={c} size={14} />
-              {c}
+      <div className="space-y-1">
+        <div className="flex flex-wrap items-center gap-1.5 text-xs">
+          <span className="font-display font-bold text-dim">THIRDS</span>
+          {(row.groupPicks?.thirds ?? []).map((c) => {
+            const advanced = thirdsHit.has(c); // made the R32 as a third (2)
+            const consolation = !advanced && top2.has(c); // instead finished top-2 (1)
+            return (
+              <span
+                key={c}
+                className={`inline-flex items-center gap-1 rounded bg-panel2 px-1.5 py-0.5 ${
+                  advanced
+                    ? `font-bold text-ink ring-1 ${thirdsOfficial ? "ring-gold/40" : "ring-live/40"}`
+                    : consolation
+                      ? "font-semibold text-bronze ring-1 ring-bronze/50"
+                      : "text-dim/70"
+                }`}
+              >
+                <Flag code={c} size={14} />
+                {c}
+                {consolation && <ArrowUp size={11} strokeWidth={2.5} className="text-bronze" />}
+              </span>
+            );
+          })}
+          {detail.thirds > 0 && (
+            <span className={`nums ml-auto ${thirdsOfficial ? "text-gold" : "text-live"}`}>
+              +{detail.thirds}
             </span>
-          );
-        })}
-        {detail.thirds > 0 && (
-          <span className={`nums ml-auto ${thirdsOfficial ? "text-gold" : "text-live"}`}>
-            +{detail.thirds}
-          </span>
+          )}
+        </div>
+        {thirdsActual.length > 0 && (row.groupPicks?.thirds?.length ?? 0) > 0 && (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] text-dim">
+            <span>
+              <span className="font-bold text-ink">Ringed</span> = advanced (2)
+            </span>
+            <span>
+              <span className="font-semibold text-bronze">
+                Bronze <ArrowUp size={9} strokeWidth={2.5} className="inline align-middle text-bronze" />
+              </span>{" "}
+              = finished top-2 (1)
+            </span>
+          </div>
         )}
       </div>
     </div>
