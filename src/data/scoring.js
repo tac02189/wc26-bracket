@@ -6,6 +6,7 @@ export const SCORING = {
   runnerUp: 3, // predicted runner-up finishes 2nd
   top2WrongSlot: 1, // team predicted top-2 advances top-2 but in the other slot
   top2ToThird: 1, // team predicted top-2 only manages 3rd — consolation
+  thirdToTop2: 1, // team you picked as an advancing 3rd instead finishes top-2 — consolation
   thirdAdvancer: 2, // each correctly picked third-place team that advances
   knockout: { R32: 2, R16: 4, QF: 6, SF: 8 }, // per correct match-winner pick
   champion: 16, // correctly picking the winner of the Final

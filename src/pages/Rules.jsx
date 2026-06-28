@@ -51,6 +51,7 @@ export default function Rules() {
             <Row label="Runner-up spot-on" pts={SCORING.runnerUp} count={12} />
             <Row label="Top-2 team, wrong slot" pts={SCORING.top2WrongSlot} />
             <Row label="Top-2 pick finishes 3rd" pts={SCORING.top2ToThird} />
+            <Row label="3rd-place pick instead finishes top-2" pts={SCORING.thirdToTop2} />
             <Row label="Each correct third that advances" pts={SCORING.thirdAdvancer} count={8} />
           </tbody>
         </table>

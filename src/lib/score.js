@@ -35,10 +35,20 @@ export function scoreGroup(pickedOrder, actualOrder, s = SCORING) {
   return pts;
 }
 
-export function scoreThirds(picked, actualEight, s = SCORING) {
-  if (!actualEight?.length) return 0;
-  const set = new Set(actualEight);
-  return (picked ?? []).filter((c) => set.has(c)).length * s.thirdAdvancer;
+// Each picked third scores full credit if it actually advanced as a third (in
+// actualEight), OR a consolation point if it instead finished top-2 in its group
+// — you correctly bet the team would advance, it just did better than 3rd. The
+// two are mutually exclusive (a team can't both finish 3rd-and-advance and top-2).
+export function scoreThirds(picked, actualEight, standings, s = SCORING) {
+  const advanced = new Set(actualEight ?? []);
+  const top2 = new Set();
+  for (const g of GROUP_LETTERS) for (const c of codes(standings?.[g]?.slice(0, 2))) top2.add(c);
+  let pts = 0;
+  for (const c of picked ?? []) {
+    if (advanced.has(c)) pts += s.thirdAdvancer;
+    else if (top2.has(c)) pts += s.thirdToTop2;
+  }
+  return pts;
 }
 
 // Current 3rd-place teams ranked by points → GD → GF, top 8. Projection only —
@@ -89,10 +99,10 @@ export function scoreUser(groupPicks, bracketPicks, results, s = SCORING) {
   }
 
   if (rg?.thirdsAdvancing?.length) {
-    detail.thirds = scoreThirds(groupPicks?.thirds, rg.thirdsAdvancing, s);
+    detail.thirds = scoreThirds(groupPicks?.thirds, rg.thirdsAdvancing, rg.standings, s);
     final += detail.thirds;
   } else if (GROUP_LETTERS.every((g) => groupEveryonePlayed(rg?.standings?.[g]))) {
-    detail.thirds = scoreThirds(groupPicks?.thirds, computeProvisionalThirds(rg), s);
+    detail.thirds = scoreThirds(groupPicks?.thirds, computeProvisionalThirds(rg), rg.standings, s);
     provisional += detail.thirds;
   }
 
