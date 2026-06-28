@@ -19,6 +19,12 @@ service cloud.firestore {
       return exists(/databases/$(database)/documents/pickGrace/$(uid))
              && request.time < get(/databases/$(database)/documents/pickGrace/$(uid)).data.until;
     }
+    // Same mechanism for the bracket: a bracketGrace/{uid} doc with a future
+    // `until` lets ONLY that user write bracket picks after the global lock.
+    function bracketGrace(uid) {
+      return exists(/databases/$(database)/documents/bracketGrace/$(uid))
+             && request.time < get(/databases/$(database)/documents/bracketGrace/$(uid)).data.until;
+    }
     // Admin is gated by verified Google email — must match ADMIN_EMAIL in src/App.jsx.
     function isAdmin() {
       return signedIn()
@@ -56,7 +62,8 @@ service cloud.firestore {
     match /bracketPicks/{uid} {
       allow read: if signedIn()
                   && (request.auth.uid == uid || request.time > bracketLock() || isAdmin());
-      allow write: if signedIn() && request.auth.uid == uid && request.time < bracketLock()
+      allow write: if signedIn() && request.auth.uid == uid
+                  && (request.time < bracketLock() || bracketGrace(uid))
                   && request.resource.data.keys().hasOnly(['winners', 'champion', 'updatedAt'])
                   && request.resource.data.winners is map;
     }
@@ -76,6 +83,11 @@ service cloud.firestore {
     // open; only admin grants/revokes them. Rule get()/exists() above read these
     // regardless of this block.
     match /pickGrace/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+      allow write: if isAdmin();
+    }
+
+    match /bracketGrace/{uid} {
       allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
       allow write: if isAdmin();
     }

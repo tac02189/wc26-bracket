@@ -48,6 +48,9 @@ function FocusRow({ code, ghost, picked, out, disabled, onPick }) {
 export default function Bracket() {
   const { user } = useAuth();
   const { data: knockout, loading: koLoading } = useDoc("results/knockout");
+  // An admin-granted late-pick grace pushes this user's effective lock forward.
+  const { data: grace } = useDoc(`bracketGrace/${user.uid}`);
+  const effectiveLock = Math.max(BRACKET_LOCK_AT, grace?.until?.toMillis?.() ?? 0);
   const [focus, setFocus] = useState(0); // index into ROUNDS — the zoomed-in round
   const [dir, setDir] = useState(1); // slide direction for the round transition
 
@@ -61,7 +64,7 @@ export default function Bracket() {
     loading,
   } = useLockedAutosave({
     path: `bracketPicks/${user.uid}`,
-    lockAt: BRACKET_LOCK_AT,
+    lockAt: effectiveLock,
     normalize: (d) => d?.winners ?? {},
     toDoc: (w) => ({ winners: w, champion: w.M104 ?? null }),
   });
@@ -208,7 +211,7 @@ export default function Bracket() {
         <SaveStatus state={saveState} />
       </div>
 
-      <CountdownBanner lockAt={BRACKET_LOCK_AT} label="Bracket locks in" />
+      <CountdownBanner lockAt={effectiveLock} label="Bracket locks in" />
 
       <div className="grid grid-cols-5 gap-1">
         {ROUNDS.map((r, i) => (
