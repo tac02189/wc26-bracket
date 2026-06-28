@@ -110,13 +110,18 @@ function transformMatches(payload) {
         m.status === "FINISHED" && winnerSide && winnerSide !== "DRAW"
           ? code(winnerSide === "HOME_TEAM" ? m.homeTeam : m.awayTeam)
           : null;
-      koBySlot[`M${matchNumber}`] = {
-        home: m.homeTeam?.id ? code(m.homeTeam) : null,
-        away: m.awayTeam?.id ? code(m.awayTeam) : null,
-        status: m.status,
-        kickoff: m.utcDate ?? null,
-        winner,
-      };
+      // Only write home/away when football-data actually has the team. The doc
+      // is written with set({merge:true}), which deep-merges the matches map, so
+      // OMITTING a side preserves a previously-written team instead of nulling
+      // it. football-data flaps the knockout draw to TBD while it assigns the
+      // third-place slots; without this a momentary empty feed clobbers known
+      // R32 teams and re-gates the bracket (same reasoning as thirdsAdvancing).
+      const home = m.homeTeam?.id ? code(m.homeTeam) : null;
+      const away = m.awayTeam?.id ? code(m.awayTeam) : null;
+      const entry = { status: m.status, kickoff: m.utcDate ?? null, winner };
+      if (home) entry.home = home;
+      if (away) entry.away = away;
+      koBySlot[`M${matchNumber}`] = entry;
       if (matchNumber === 104 && winner) champion = winner;
     });
   }
