@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronLeft, ChevronRight, GitBranch, Trophy } from "lucide-react";
+import { Check, CheckCircle2, ChevronLeft, ChevronRight, GitBranch, Trophy, XCircle } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useDoc } from "../lib/hooks";
 import { useLockedAutosave } from "../lib/autosave";
+import { bracketSlotResult, scoreBracket } from "../lib/score";
+import { SCORING } from "../data/scoring";
 import { TEAMS } from "../data/tournament";
 import { BRACKET_LOCK_AT, GROUP_STAGE_ENDS } from "../data/schedule";
 import { BRACKET_ORDERS, FEEDS, ROUNDS, sanitizeWinners, slotOf, teamsOf } from "../data/bracketStructure";
@@ -20,8 +22,10 @@ const kickoffLabel = (iso) =>
     : "";
 
 // One side of a focused-round match. A real team is a tap target; an unresolved
-// feeder is a dim "Winner of M__" ghost.
-function FocusRow({ code, ghost, picked, out, disabled, onPick }) {
+// feeder is a dim "Winner of M__" ghost. Once the real result is in, the picked
+// row is graded green (correct, +pts) or red (wrong), and the team that actually
+// won is flagged green even if it wasn't the pick — so right/wrong is unmissable.
+function FocusRow({ code, ghost, picked, out, won, result, pts, disabled, onPick }) {
   if (!code) {
     return (
       <div className="flex h-[30px] items-center gap-2 px-2.5 text-sm text-dim/60">
@@ -30,17 +34,34 @@ function FocusRow({ code, ghost, picked, out, disabled, onPick }) {
       </div>
     );
   }
+  const correct = result === "correct";
+  const wrong = result === "wrong";
+  const cls = correct
+    ? "bg-live/15 font-bold text-ink"
+    : wrong
+      ? "bg-bad/15 font-bold text-bad"
+      : picked
+        ? "bg-gold/10 font-bold text-ink"
+        : won
+          ? "text-live"
+          : out
+            ? "text-dim/60 line-through"
+            : "text-dim";
   return (
     <button
       disabled={disabled}
       onClick={onPick}
-      className={`flex h-[30px] w-full items-center gap-2 px-2.5 text-left text-sm transition-colors ${
-        picked ? "bg-gold/10 font-bold text-ink" : out ? "text-dim/60 line-through" : "text-dim"
-      } ${disabled ? "cursor-default" : "active:bg-panel2"}`}
+      className={`flex h-[30px] w-full items-center gap-2 px-2.5 text-left text-sm transition-colors ${cls} ${
+        disabled ? "cursor-default" : "active:bg-panel2"
+      }`}
     >
       <Flag code={code} size={20} />
       <span className="flex-1 truncate">{TEAMS[code].name}</span>
-      {picked && <Check size={14} className="shrink-0 text-gold" />}
+      {correct && <span className="nums shrink-0 text-[10px] font-bold text-gold">+{pts}</span>}
+      {correct && <CheckCircle2 size={14} className="shrink-0 text-live" />}
+      {wrong && <XCircle size={14} className="shrink-0 text-bad" />}
+      {!picked && won && <CheckCircle2 size={13} className="shrink-0 text-live/80" />}
+      {picked && !correct && !wrong && <Check size={14} className="shrink-0 text-gold" />}
     </button>
   );
 }
@@ -199,8 +220,19 @@ export default function Bracket() {
   const midX = (fcRight + pkLeft) / 2;
 
   const champion = winners?.M104;
+  const realChamp = knockout?.champion ?? null;
+  const champCorrect = champion && realChamp && champion === realChamp;
+  const champWrong = champion && realChamp && champion !== realChamp;
+  const bracketPts = scoreBracket(winners, knockout);
   const filled = (key) => BRACKET_ORDERS[key].filter((n) => winners?.[slotOf(n)]).length;
-  const stroke = (n) => (winners?.[slotOf(n)] ? "var(--color-bronze)" : "var(--color-line)");
+  // Connector tint: green/red once the feeder match is decided, gold for an
+  // ungraded pick, faint line for an empty slot.
+  const stroke = (n) => {
+    const sr = bracketSlotResult(slotOf(n), winners, knockout);
+    if (sr.tier === "correct") return "var(--color-live)";
+    if (sr.tier === "wrong") return "var(--color-bad)";
+    return sr.pick ? "var(--color-bronze)" : "var(--color-line)";
+  };
 
   return (
     <div className="space-y-3">
@@ -208,7 +240,14 @@ export default function Bracket() {
         <h2 className="font-display font-bold text-3xl tracking-wide">
           {locked ? "MY BRACKET" : "FILL YOUR BRACKET"}
         </h2>
-        <SaveStatus state={saveState} />
+        {locked ? (
+          <span className="nums inline-flex items-center gap-1 font-display font-bold text-gold">
+            <Trophy size={15} />
+            {bracketPts} <span className="text-sm font-normal text-dim">pts</span>
+          </span>
+        ) : (
+          <SaveStatus state={saveState} />
+        )}
       </div>
 
       <CountdownBanner lockAt={effectiveLock} label="Bracket locks in" />
@@ -277,7 +316,15 @@ export default function Bracket() {
                       d={`M${fcRight} ${cen(0)} H${pkLeft}`}
                       fill="none"
                       strokeWidth="1.6"
-                      stroke={champion ? "var(--color-gold)" : "var(--color-line)"}
+                      stroke={
+                        champCorrect
+                          ? "var(--color-live)"
+                          : champWrong
+                            ? "var(--color-bad)"
+                            : champion
+                              ? "var(--color-gold)"
+                              : "var(--color-line)"
+                      }
                     />
                   )}
             </svg>
@@ -287,6 +334,9 @@ export default function Bracket() {
               const [home, away] = teamsOf(n, koMatches, winners);
               const pickHere = winners?.[slot];
               const [f1, f2] = FEEDS[n] ?? [];
+              // Grade against the real result for this slot (mirrors scoreBracket).
+              const sr = bracketSlotResult(slot, winners, knockout);
+              const realWinner = n === 104 ? realChamp : koMatches[slot]?.winner ?? null;
               return (
                 <div
                   key={n}
@@ -302,6 +352,9 @@ export default function Bracket() {
                     ghost={f1 ? `Winner of M${f1}` : "TBD"}
                     picked={pickHere && pickHere === home}
                     out={pickHere && pickHere !== home}
+                    won={!!home && realWinner === home}
+                    result={pickHere === home ? sr.tier : null}
+                    pts={sr.pts}
                     disabled={locked}
                     onPick={() => pick(n, home)}
                   />
@@ -311,6 +364,9 @@ export default function Bracket() {
                     ghost={f2 ? `Winner of M${f2}` : "TBD"}
                     picked={pickHere && pickHere === away}
                     out={pickHere && pickHere !== away}
+                    won={!!away && realWinner === away}
+                    result={pickHere === away ? sr.tier : null}
+                    pts={sr.pts}
                     disabled={locked}
                     onPick={() => pick(n, away)}
                   />
@@ -348,15 +404,34 @@ export default function Bracket() {
                 })
               : (
                   <div
-                    className="absolute rounded-lg border border-gold/40 bg-gold/10 px-3 py-3 text-center"
+                    className={`absolute rounded-lg border px-3 py-3 text-center ${
+                      champCorrect
+                        ? "border-live/50 bg-live/10"
+                        : champWrong
+                          ? "border-bad/50 bg-bad/10"
+                          : "border-gold/40 bg-gold/10"
+                    }`}
                     style={{ left: pkLeft - 4, width: pkW + 14, top: cen(0) - 30 }}
                   >
-                    <Trophy size={20} className="mx-auto text-gold" />
+                    <Trophy
+                      size={20}
+                      className={`mx-auto ${champCorrect ? "text-live" : champWrong ? "text-bad" : "text-gold"}`}
+                    />
                     {champion ? (
-                      <div className="mt-1 font-display font-bold text-sm text-gold">{TEAMS[champion].name}</div>
+                      <div
+                        className={`mt-1 font-display font-bold text-sm ${
+                          champCorrect ? "text-live" : champWrong ? "text-bad" : "text-gold"
+                        }`}
+                      >
+                        {TEAMS[champion].name}
+                      </div>
                     ) : (
                       <div className="mt-1 text-[10px] text-dim">Champion</div>
                     )}
+                    {champCorrect && (
+                      <div className="nums mt-0.5 text-[10px] font-bold text-live">+{SCORING.champion} ✓</div>
+                    )}
+                    {champWrong && <div className="mt-0.5 text-[10px] text-bad">missed</div>}
                   </div>
                 )}
           </div>
@@ -376,9 +451,23 @@ export default function Bracket() {
         ))}
       </div>
 
+      {locked && (
+        <div className="flex flex-wrap justify-center gap-x-3 gap-y-0.5 text-center text-[11px] text-dim/80">
+          <span>
+            <span className="text-live">●</span> correct (+pts)
+          </span>
+          <span>
+            <span className="text-bad">●</span> wrong
+          </span>
+          <span>
+            <span className="text-gold">●</span> awaiting result
+          </span>
+        </div>
+      )}
       <p className="text-center text-xs text-dim/80">
-        Swipe or tap a round to move across the bracket. Changing an early pick clears any later picks that
-        depended on it.
+        {locked
+          ? "Swipe or tap a round to move across the bracket."
+          : "Swipe or tap a round to move across the bracket. Changing an early pick clears any later picks that depended on it."}
       </p>
     </div>
   );

@@ -3,12 +3,15 @@ import { ArrowUp, ChevronDown, ChevronUp, Eye, Trophy, Users } from "lucide-reac
 import { useAuth } from "../context/AuthContext";
 import { useCollection, useDoc } from "../lib/hooks";
 import {
+  bracketSlotResult,
   computeProvisionalThirds,
   groupEveryonePlayed,
   rankUsers,
+  scoreBracket,
   scoreUser,
 } from "../lib/score";
-import { GROUP_LETTERS } from "../data/tournament";
+import { GROUP_LETTERS, TEAMS } from "../data/tournament";
+import { ROUNDS, slotOf } from "../data/bracketStructure";
 import { GROUP_LOCK_AT, BRACKET_LOCK_AT } from "../data/schedule";
 import { getLeague, joinLeague } from "../lib/leagues";
 import Flag from "../components/Flag";
@@ -38,6 +41,91 @@ const GROUP_PICK_CLASS = {
   miss: "text-dim/55", // no points
   pending: "text-dim/70", // group not scored yet
 };
+
+// A person's champion pick, shown right on the table row once brackets are
+// locked. Green once it IS the crowned champion, red once a *different* champion
+// is decided, neutral gold until the Final resolves. (Mirrors scoring: the champ
+// is graded only against the real champion, not an earlier elimination — so a
+// pick eliminated mid-tournament still reads gold until someone is crowned.)
+function ChampChip({ code, realChampion }) {
+  if (!code) return null;
+  const decided = !!realChampion;
+  const right = decided && code === realChampion;
+  const wrong = decided && code !== realChampion;
+  return (
+    <span
+      title={`Champion pick: ${TEAMS[code]?.name ?? code}`}
+      className={`flex shrink-0 items-center gap-1 rounded-full border px-1.5 py-0.5 ${
+        right ? "border-live/60 bg-live/10" : wrong ? "border-bad/50 bg-bad/10" : "border-gold/40 bg-gold/10"
+      }`}
+    >
+      <Trophy size={11} className={right ? "text-live" : wrong ? "text-bad" : "text-gold"} />
+      <Flag code={code} size={14} />
+    </span>
+  );
+}
+
+// The whole bracket in one compact block: each round's picked winners as small
+// flags, graded green (correct) / struck-red (wrong) against the real results —
+// the same per-slot verdict the scoring engine uses (bracketSlotResult).
+function BracketDetail({ winners, knockout }) {
+  if (!winners || Object.keys(winners).length === 0) {
+    return <div className="text-xs text-dim/55">No bracket picks.</div>;
+  }
+  const total = scoreBracket(winners, knockout);
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center gap-2">
+        <span className="font-display font-bold text-dim text-xs">BRACKET</span>
+        {total > 0 && <span className="nums text-xs text-gold">+{total}</span>}
+      </div>
+      {ROUNDS.map((r) => {
+        const cells = r.matches
+          .map((n) => ({ slot: slotOf(n), ...bracketSlotResult(slotOf(n), winners, knockout) }))
+          .filter((c) => c.pick);
+        if (cells.length === 0) return null;
+        const pts = cells.reduce((a, c) => a + c.pts, 0);
+        return (
+          <div key={r.key} className="flex items-start gap-1.5 text-xs">
+            <span className="w-7 shrink-0 pt-0.5 font-display font-bold text-dim">
+              {r.key === "F" ? <Trophy size={12} className="text-gold" /> : r.key}
+            </span>
+            <div className="flex flex-1 flex-wrap items-center gap-1">
+              {cells.map((c) => (
+                <span
+                  key={c.slot}
+                  title={TEAMS[c.pick]?.name ?? c.pick}
+                  className={`inline-flex items-center gap-1 rounded bg-panel2 px-1 py-0.5 ${
+                    c.tier === "correct"
+                      ? "font-bold text-ink ring-1 ring-live/50"
+                      : c.tier === "wrong"
+                        ? "text-bad/70 line-through"
+                        : "text-dim/70"
+                  }`}
+                >
+                  <Flag code={c.pick} size={13} />
+                  {c.pick}
+                </span>
+              ))}
+            </div>
+            {pts > 0 && <span className="nums shrink-0 pt-0.5 text-gold">+{pts}</span>}
+          </div>
+        );
+      })}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 pt-0.5 text-[10px] text-dim">
+        <span>
+          <span className="font-bold text-ink">Ringed</span> = correct
+        </span>
+        <span>
+          <span className="text-bad/70 line-through">Struck</span> = wrong
+        </span>
+        <span>
+          <span className="text-dim/70">Plain</span> = not played yet
+        </span>
+      </div>
+    </div>
+  );
+}
 
 function PickDetail({ row, results }) {
   const detail = row.score?.detail ?? { groups: {}, thirds: 0 };
@@ -158,6 +246,11 @@ function PickDetail({ row, results }) {
           </div>
         )}
       </div>
+      {row.bracketPicks?.winners && (
+        <div className="border-t border-line/60 pt-2">
+          <BracketDetail winners={row.bracketPicks.winners} knockout={results?.knockout} />
+        </div>
+      )}
     </div>
   );
 }
@@ -345,13 +438,19 @@ export default function Leaderboard() {
           <li key={r.uid} className="border-b border-line/60 last:border-b-0">
             <button
               onClick={() => setOpen(open === r.uid ? null : r.uid)}
-              className="flex w-full items-center gap-3 px-3 py-2.5 text-left active:bg-panel2"
+              className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left active:bg-panel2"
             >
-              <span className="nums w-7 shrink-0 font-display font-bold text-lg text-dim">
+              <span className="nums w-6 shrink-0 font-display font-bold text-lg text-dim">
                 {r.rank}
               </span>
               <Avatar photoURL={r.photoURL} displayName={r.displayName} />
               <span className="flex-1 truncate">{r.displayName}</span>
+              {bracketLocked && (
+                <ChampChip
+                  code={r.bracketPicks?.champion ?? r.bracketPicks?.winners?.M104 ?? null}
+                  realChampion={resultsKnockout?.champion ?? null}
+                />
+              )}
               {r.score.provisional > 0 && <span className="text-live text-xs">●</span>}
               <span className="nums font-display font-bold text-xl text-gold">{r.score.total}</span>
               {open === r.uid ? (

@@ -78,6 +78,26 @@ export function scoreBracket(winners, knockout, s = SCORING) {
   return pts;
 }
 
+// Per-slot grade for one bracket pick, mirroring scoreBracket EXACTLY so the
+// UI's right/wrong marks always agree with the points awarded. Returns
+// { tier, pts, pick } where tier is 'empty' | 'pending' | 'correct' | 'wrong'.
+export function bracketSlotResult(slot, winners, knockout, s = SCORING) {
+  const pick = winners?.[slot] ?? null;
+  if (!pick) return { tier: "empty", pts: 0, pick: null };
+  const n = Number(slot.slice(1)); // "M73".."M104"
+  // The Final is scored off the champion field, not the matches map (see scoreBracket).
+  if (n === 104) {
+    const champ = knockout?.champion ?? null;
+    if (!champ) return { tier: "pending", pts: 0, pick };
+    return { tier: pick === champ ? "correct" : "wrong", pts: pick === champ ? s.champion : 0, pick };
+  }
+  const round = n <= 88 ? "R32" : n <= 96 ? "R16" : n <= 100 ? "QF" : n <= 102 ? "SF" : null;
+  if (!round) return { tier: "pending", pts: 0, pick }; // M103 third-place: never picked/scored
+  const winner = knockout?.matches?.[slot]?.winner ?? null;
+  if (!winner) return { tier: "pending", pts: 0, pick };
+  return { tier: pick === winner ? "correct" : "wrong", pts: pick === winner ? s.knockout[round] : 0, pick };
+}
+
 // Returns { total, final, provisional, detail }. `final` = decided (group
 // complete / official thirds / finished knockout). `provisional` = live "if
 // standings hold" points, counted ONLY for groups where every team has played
