@@ -10,6 +10,11 @@
 //      Round of 32 is known). Goes to everyone with a real, verified email.
 //   2. "2 hours to lock"  — fires inside the 2h window before BRACKET_LOCK_AT.
 //      Goes ONLY to people whose bracket isn't complete yet.
+//   3. "Final standings"  — fires once results/knockout.champion is set (the bot
+//      writes it only when the real Final is FINISHED). Congratulates the overall
+//      pool winner plus each league's winner; every recipient gets the overall
+//      podium + their own placement + a full table for each league THEY are in.
+//      Scored with the same engine as the site (src/lib/score.js).
 //
 // Recipients come from Firebase Auth (Google sign-ins carry a verified email).
 // PIN accounts are synthetic pin{N}@wc26pool.app addresses with no inbox — they're
@@ -23,6 +28,9 @@ import { cert, initializeApp } from "firebase-admin/app";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
 import nodemailer from "nodemailer";
+// The site's own scoring engine + team names — pure modules, safe under plain Node.
+import { rankUsers, scoreUser } from "../src/lib/score.js";
+import { TEAMS } from "../src/data/tournament.js";
 
 const APP_URL = "https://wc26-bracket.web.app";
 
@@ -203,6 +211,164 @@ export function buildLockSoon({ name }) {
   return { subject: "Last call — lock your WC26 bracket today", text, html };
 }
 
+// ---- Email 3: final standings & congratulations ---------------------------
+
+// Everything the final email needs, in one parallel read.
+export async function fetchPoolData(db) {
+  const [usersSnap, gpSnap, bpSnap, rgSnap, rkSnap, leaguesSnap] = await Promise.all([
+    db.collection("users").get(),
+    db.collection("groupPicks").get(),
+    db.collection("bracketPicks").get(),
+    db.doc("results/groups").get(),
+    db.doc("results/knockout").get(),
+    db.collection("leagues").get(),
+  ]);
+  const groupPicks = new Map(gpSnap.docs.map((d) => [d.id, d.data()]));
+  const bracketPicks = new Map(bpSnap.docs.map((d) => [d.id, d.data()]));
+  const users = usersSnap.docs.map((d) => ({
+    uid: d.id,
+    displayName: (d.data()?.displayName || "Anonymous").trim(),
+    leagues: d.data()?.leagues || {}, // membership only — leaguesView watchers stay out
+  }));
+  const leagueNames = {};
+  leaguesSnap.forEach((d) => (leagueNames[d.id] = d.data()?.name || d.id));
+  return {
+    users,
+    groupPicks,
+    bracketPicks,
+    leagueNames,
+    results: { groups: rgSnap.data() ?? null, knockout: rkSnap.data() ?? null },
+  };
+}
+
+// Overall table + one ranked table per non-empty league. Mirrors the leaderboard
+// exactly: same rows, same scoreUser/rankUsers, membership keyed off
+// users/{uid}.leagues only.
+export function buildStandings({ users, groupPicks, bracketPicks, leagueNames, results }) {
+  const memberships = new Map(users.map((u) => [u.uid, u.leagues]));
+  const rows = users.map((u) => ({
+    uid: u.uid,
+    displayName: u.displayName,
+    groupPicks: groupPicks.get(u.uid) ?? null,
+    bracketPicks: bracketPicks.get(u.uid) ?? null,
+    score: scoreUser(groupPicks.get(u.uid) ?? null, bracketPicks.get(u.uid) ?? null, results),
+  }));
+  const overall = rankUsers(rows, results);
+  const leagues = {};
+  for (const [code, name] of Object.entries(leagueNames)) {
+    const memberRows = rows.filter((r) => memberships.get(r.uid)?.[code]);
+    if (memberRows.length) leagues[code] = { code, name, table: rankUsers(memberRows, results) };
+  }
+  return { overall, leagues, memberships };
+}
+
+const winnersOf = (table) => table.filter((r) => r.rank === 1);
+const nameList = (rs) => rs.map((r) => r.displayName).join(" & ");
+
+// The slice of standings one recipient cares about: the overall table, their own
+// row, and the leagues they belong to.
+export function congratsViewFor(recipient, { overall, leagues, memberships }) {
+  const myLeagues = Object.keys(memberships.get(recipient.uid) ?? {})
+    .filter((code) => leagues[code])
+    .map((code) => leagues[code]);
+  return {
+    uid: recipient.uid,
+    name: recipient.name,
+    overall,
+    me: overall.find((r) => r.uid === recipient.uid) ?? null,
+    myLeagues,
+  };
+}
+
+function tableHtml(table, meUid) {
+  const rows = table
+    .map((r) => {
+      const win = r.rank === 1;
+      const c = win ? "#ffdf00" : "#f3faf5";
+      return `<tr>
+        <td style="padding:3px 8px 3px 0;color:#a7cbb8;white-space:nowrap;">${r.rank}</td>
+        <td style="padding:3px 8px 3px 0;color:${c};${win ? "font-weight:700;" : ""}">${escapeHtml(r.displayName)}${r.uid === meUid ? ' <span style="color:#a7cbb8;font-weight:400;">(you)</span>' : ""}</td>
+        <td align="right" style="padding:3px 0;color:${c};font-weight:700;">${r.score.total}</td>
+      </tr>`;
+    })
+    .join("");
+  return `<table role="presentation" style="width:100%;border-collapse:collapse;font-size:14px;margin:4px 0 2px;">${rows}</table>`;
+}
+
+const tableText = (table, meUid) =>
+  table
+    .map((r) => `  ${r.rank}. ${r.displayName}${r.uid === meUid ? " (you)" : ""} — ${r.score.total}`)
+    .join("\n");
+
+export function buildCongrats(view, worldChampionCode) {
+  const { uid, name, overall, me, myLeagues } = view;
+  const teamName = TEAMS[worldChampionCode]?.name ?? worldChampionCode ?? "The champion";
+  const overallWinners = winnersOf(overall);
+  const wonOverall = overallWinners.some((w) => w.uid === uid);
+  const wonLeagues = myLeagues.filter((l) => winnersOf(l.table).some((w) => w.uid === uid));
+
+  const subject = wonOverall
+    ? "You won the WC26 Pool!"
+    : wonLeagues.length
+      ? `You won ${wonLeagues.map((l) => l.name).join(" & ")} — WC26 final standings`
+      : "That's a wrap — WC26 Pool final standings";
+
+  const hi = name ? `Hi ${name},` : "Hi there,";
+  const podium = overall.filter((r) => r.rank <= 3);
+  const myLine =
+    me && me.rank > 3 ? `You finished #${me.rank} of ${overall.length} with ${me.score.total} pts.` : null;
+
+  const text = [
+    hi,
+    "",
+    `${teamName} are world champions — and with the Final done, the pool is final too.`,
+    "",
+    `OVERALL — ${wonOverall ? "you won the whole thing! Congratulations!" : `champion: ${nameList(overallWinners)}`}`,
+    tableText(podium, uid),
+    ...(myLine ? [myLine] : []),
+    ...myLeagues.flatMap((l) => {
+      const ws = winnersOf(l.table);
+      const won = ws.some((w) => w.uid === uid);
+      return [
+        "",
+        `${l.name.toUpperCase()} — ${won ? "you're the champion! Congratulations!" : `champion: ${nameList(ws)}`}`,
+        tableText(l.table, uid),
+      ];
+    }),
+    "",
+    "Thanks for playing — see the full bracket and every table on the site.",
+    APP_URL,
+    "",
+    "— WC26 Pool",
+  ].join("\n");
+
+  const sectionHead = (label) =>
+    `<h2 style="margin:18px 0 2px;font-family:'Barlow Condensed','Arial Narrow',Arial,sans-serif;font-size:17px;font-weight:700;letter-spacing:.8px;color:#ffdf00;">${escapeHtml(label.toUpperCase())}</h2>`;
+  const champLine = (ws, won, label) =>
+    won
+      ? `<p style="margin:0 0 2px;color:#3ce8a0;font-weight:700;">Congratulations — you won ${escapeHtml(label)}!</p>`
+      : `<p style="margin:0 0 2px;color:#a7cbb8;">Champion: <strong style="color:#ffdf00;">${escapeHtml(nameList(ws))}</strong></p>`;
+
+  const html = htmlShell(
+    wonOverall ? "You won the pool!" : "That's a wrap",
+    `<p style="margin:0 0 12px;">${name ? `Hi ${escapeHtml(name)},` : "Hi there,"}</p>
+     <p style="margin:0 0 4px;"><strong style="color:#ffdf00;">${escapeHtml(teamName)}</strong> are world champions — and with the Final done, the pool is final too.</p>
+     ${sectionHead("Overall")}
+     ${champLine(overallWinners, wonOverall, "the whole pool")}
+     ${tableHtml(podium, uid)}
+     ${myLine ? `<p style="margin:2px 0 0;color:#a7cbb8;">${escapeHtml(myLine)}</p>` : ""}
+     ${myLeagues
+       .map((l) => {
+         const ws = winnersOf(l.table);
+         return `${sectionHead(l.name)}${champLine(ws, ws.some((w) => w.uid === uid), `the ${l.name} league`)}${tableHtml(l.table, uid)}`;
+       })
+       .join("")}
+     <p style="margin:16px 0 0;color:#a7cbb8;">Thanks for playing — see the full bracket and every table on the site.</p>`,
+    "See the final table"
+  );
+  return { subject, text, html };
+}
+
 // Mirrors r32Ready in src/pages/Bracket.jsx: the tab only opens once every R32
 // match has BOTH teams. football-data fills the third-place slots late, so
 // config/settings.phase can read "bracket-open" while the bracket is still gated
@@ -238,12 +404,20 @@ async function main() {
   const db = getFirestore();
   const auth = getAuth();
 
-  const phase = (await db.doc("config/settings").get()).data()?.phase ?? null;
+  const [settingsSnap, knockoutSnap] = await Promise.all([
+    db.doc("config/settings").get(),
+    db.doc("results/knockout").get(),
+  ]);
+  const phase = settingsSnap.data()?.phase ?? null;
+  // The bot writes champion only from a FINISHED real Final — the one signal
+  // that the tournament (and therefore every score) is final.
+  const worldChampion = knockoutSnap.data()?.champion ?? null;
   const now = Date.now();
   const wantBracketOpen = phase === "bracket-open";
   const wantLockSoon = now >= BRACKET_LOCK_AT - LOCK_LEAD_MS && now < BRACKET_LOCK_AT;
+  const wantCongrats = !!worldChampion;
 
-  if (!wantBracketOpen && !wantLockSoon) {
+  if (!wantBracketOpen && !wantLockSoon && !wantCongrats) {
     console.log(`nothing to send (phase=${phase}, now=${new Date(now).toISOString()})`);
     return;
   }
@@ -282,6 +456,16 @@ async function main() {
     const unfinished = recipients.filter((u) => !completed.has(u.uid));
     const { sent, failures: f } = await sendAll(transport, from, unfinished, buildLockSoon);
     console.log(`lock-soon: sent ${sent}/${unfinished.length} (skipped ${completed.size} completed brackets)`);
+    failures.push(...f);
+  }
+
+  if (wantCongrats && (await claim(db, "congratsSent"))) {
+    const [recipients, data] = await Promise.all([audience(), fetchPoolData(db)]);
+    const standings = buildStandings(data);
+    const { sent, failures: f } = await sendAll(transport, from, recipients, (r) =>
+      buildCongrats(congratsViewFor(r, standings), worldChampion)
+    );
+    console.log(`congrats: sent ${sent}/${recipients.length}`);
     failures.push(...f);
   }
 

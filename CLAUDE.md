@@ -62,13 +62,18 @@ manual fallback.
 ## Reminder emails (v1.2)
 
 `.github/workflows/reminders.yml` cron (every 15 min) → `scripts/reminders.mjs`
-→ Gmail SMTP (nodemailer). Two one-shot emails, each guarded by a flag in
+→ Gmail SMTP (nodemailer). Three one-shot emails, each guarded by a flag in
 `config/reminders` claimed in a transaction BEFORE sending (at-most-once; the
 repeating cron can't double-send): **(1)** "bracket is open" to everyone with a
 real verified email, fired when `config/settings.phase === "bracket-open"`;
 **(2)** "2h to lock" fired inside the 2h window before `BRACKET_LOCK_AT`, sent
 ONLY to uids whose `bracketPicks` doc isn't complete (all 31 slots filled —
-mirrors `PICKABLE` in `src/data/bracketStructure.js`). Recipients come from
+mirrors `PICKABLE` in `src/data/bracketStructure.js`); **(3)** "final standings"
+(flag `congratsSent`) fired once `results/knockout.champion` is set, to everyone
+— overall podium + own placement + a full table per league the recipient is IN
+(membership = `users/{uid}.leagues`, never `leaguesView`). It scores by importing
+`src/lib/score.js` directly (which is why that file's imports carry explicit
+`.js` extensions — plain Node needs them; don't strip them). Recipients come from
 `admin.auth().listUsers()`; PIN accounts (synthetic `@wc26pool.app`, unverified)
 are filtered out, as is anyone with `users/{uid}.emailOptOut === true`. Secrets
 `GMAIL_USER` + `GMAIL_APP_PASSWORD` live only in GitHub Actions (Gmail account

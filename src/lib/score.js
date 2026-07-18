@@ -6,8 +6,10 @@
 //                       thirdsAdvancing: [code×8]|null, allGroupsFinal: bool }
 //   results/knockout: { matches: {"R32-1":{winner:code|null},…}, champion: code|null }
 
-import { SCORING } from "../data/scoring";
-import { GROUP_LETTERS } from "../data/tournament";
+// .js extensions so plain Node (scripts/reminders.mjs) can import this engine
+// directly — the congrats email scores with the exact same code as the site.
+import { SCORING } from "../data/scoring.js";
+import { GROUP_LETTERS } from "../data/tournament.js";
 
 const codes = (rows) => (rows ?? []).map((r) => (typeof r === "string" ? r : r.code));
 

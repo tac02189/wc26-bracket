@@ -171,7 +171,9 @@ export default function Admin() {
                             ...knockout.matches,
                             [slot]: { ...m, winner: m.winner === c ? null : c, status: "FINISHED" },
                           },
-                          ...(slot === "F" ? { champion: m.winner === c ? null : c } : {}),
+                          // M104 is the Final — champion must mirror its winner, since
+                          // scoring and the congrats email key off the champion field.
+                          ...(slot === "M104" ? { champion: m.winner === c ? null : c } : {}),
                         },
                         setMsg
                       )
