@@ -1,9 +1,12 @@
 name: reminders
 
 on:
-  schedule:
-    - cron: "*/15 * * * *" # every 15 min; the script no-ops until a reminder is due
-  workflow_dispatch: {} # manual "Run workflow" button (also used to retry a failed send)
+  # PAUSED after the 2026 World Cup — no automatic emails until the next
+  # tournament (2030). Re-enable by uncommenting the schedule below and updating
+  # the cron/dates. Manual "Run workflow" still works via workflow_dispatch.
+  # schedule:
+  #   - cron: "*/15 * * * *" # every 15 min; the script no-ops until a reminder is due
+  workflow_dispatch: {} # manual "Run workflow" button — still available
 
 jobs:
   notify:

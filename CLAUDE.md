@@ -50,6 +50,13 @@ Key invariants:
 
 ## Results pipeline (v1.1)
 
+**PAUSED after the 2026 World Cup (champion: Spain).** Both GitHub Actions crons
+(`results-bot.yml` here, `reminders.yml` below) have their `schedule:` triggers
+commented out — no automatic fetching or emails until the next tournament
+(2030). `workflow_dispatch` (manual "Run workflow") still works. To relaunch:
+uncomment both schedules, refresh all lock dates (see the invariant note under
+Stack & shape), and re-verify the football-data `WC` season.
+
 `.github/workflows/results-bot.yml` cron → `scripts/results-bot.mjs` →
 football-data.org (`WC` competition) → writes `results/groups`,
 `results/knockout`, `config/settings.phase` via firebase-admin. Secrets

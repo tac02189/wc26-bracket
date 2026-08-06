@@ -1,9 +1,12 @@
 name: results-bot
 
 on:
-  schedule:
-    - cron: "*/30 * * * *" # every 30 min; GH may lag a few minutes — fine
-  workflow_dispatch: {} # manual "Run workflow" button (important June 27)
+  # PAUSED after the 2026 World Cup — no automatic data fetching until the next
+  # tournament (2030). Re-enable by uncommenting the schedule below and updating
+  # the cron/dates. Manual "Run workflow" still works via workflow_dispatch.
+  # schedule:
+  #   - cron: "*/30 * * * *" # every 30 min; GH may lag a few minutes — fine
+  workflow_dispatch: {} # manual "Run workflow" button — still available
 
 jobs:
   fetch:
