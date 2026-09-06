@@ -1,6 +1,7 @@
 # World Cup Bracket — Project Instructions
 
-Extends the root `[3] Claude/CLAUDE.md`. Read that first.
+Read the [workspace orientation](../CLAUDE.md) first when working in this workspace.
+[README.md](README.md) covers local setup; [AGENTS.md](AGENTS.md) adds contribution guardrails.
 
 ## What this is
 
