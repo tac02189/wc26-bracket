@@ -8,7 +8,7 @@ dist/
 *.env
 *service-account*.json
 *-service-account.json
-firebase-adminsdk*.json
+*firebase-adminsdk*.json
 wc26bracketkey.json
 *key.json
 *-key.json
