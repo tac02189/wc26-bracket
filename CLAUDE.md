@@ -34,9 +34,11 @@ Key invariants:
   hook carries hard-won fixes (stale-tab clobber, offline hydration, unmount
   flush); don't hand-roll saves around it. Partial picks are legal everywhere —
   scoring skips gaps.
-- Admin = `tac02189@gmail.com`, gated by verified email in TWO places that must
-  stay identical: `isAdmin()` in `firestore.rules` (requires rules redeploy)
-  and the `ADMIN_EMAIL` check in `App.jsx` (cosmetic tab visibility). Rules
+- Admin = `tac02189@gmail.com`. The real gate is `isAdmin()` in
+  `firestore.rules`, which requires that address, verified (changing it needs
+  a rules redeploy). The cosmetic `isAdmin` in `App.jsx` only shows the Admin
+  tab: it compares the same address without the verified check, and also
+  accepts `config/settings.adminUid`. Keep the two addresses the same. Rules
   write-shape checks mean picks docs may only contain their exact known fields.
 - **Leagues** (`src/lib/leagues.js`) are named leaderboard slices, NOT privacy
   walls — one global set of picks/scores; a league only narrows who you rank
@@ -45,8 +47,8 @@ Key invariants:
   filters with zero extra reads. `users/{uid}.leaguesView` (same shape) grants
   view-only access — the selector unions it in (Eye icon), but the membership
   filter keys off `leagues` only, so a viewer sees the board without appearing
-  in it. Join link = `?join={code}` (handled by `JoinBanner`). Reveal/lock
-  semantics are unchanged and remain global.
+  in it. Join link = `?join={code}` (handled by `JoinBanner`). Reveal and lock
+  semantics are global.
 
 ## Results pipeline (v1.1)
 
@@ -62,9 +64,8 @@ football-data.org (`WC` competition) → writes `results/groups`,
 `results/knockout`, `config/settings.phase` via firebase-admin. Secrets
 `FOOTBALL_DATA_TOKEN` + `FIREBASE_SERVICE_ACCOUNT` live only in GitHub Actions.
 Official third-place advancers derive from who appears in the real R32
-fixtures, never from a computed table. Admin page (Thiago's UID in
-`config/settings.adminUid` + `firestore.rules`) writes the same shapes — full
-manual fallback.
+fixtures, never from a computed table. The Admin page (gated as above) writes
+the same shapes — a full manual fallback.
 
 ## Reminder emails (v1.2)
 
