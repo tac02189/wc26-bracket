@@ -55,14 +55,19 @@ Key invariants:
 **PAUSED after the 2026 World Cup (champion: Spain).** Both GitHub Actions crons
 (`results-bot.yml` here, `reminders.yml` below) have their `schedule:` triggers
 commented out — no automatic fetching or emails until the next tournament
-(2030). `workflow_dispatch` (manual "Run workflow") still works. To relaunch:
-uncomment both schedules, refresh all lock dates (see the invariant note under
-Stack & shape), and re-verify the football-data `WC` season.
+(2030). `workflow_dispatch` (manual "Run workflow") is still there, but no run
+works until `FIREBASE_SERVICE_ACCOUNT` holds a new key: the only admin key was
+deleted in the Cloud console on 2026-11-20. To relaunch: create a new key for
+`firebase-adminsdk-fbsvc@wc26-bracket.iam.gserviceaccount.com` and put it in
+that secret, uncomment both schedules, refresh all lock dates (see the
+invariant note under Stack & shape), and re-verify the football-data `WC`
+season.
 
 `.github/workflows/results-bot.yml` cron → `scripts/results-bot.mjs` →
 football-data.org (`WC` competition) → writes `results/groups`,
 `results/knockout`, `config/settings.phase` via firebase-admin. Secrets
-`FOOTBALL_DATA_TOKEN` + `FIREBASE_SERVICE_ACCOUNT` live only in GitHub Actions.
+`FOOTBALL_DATA_TOKEN` + `FIREBASE_SERVICE_ACCOUNT` live only in GitHub Actions
+(the latter holds a deleted key until replaced; see above).
 Official third-place advancers derive from who appears in the real R32
 fixtures, never from a computed table. The Admin page (gated as above) writes
 the same shapes — a full manual fallback.
