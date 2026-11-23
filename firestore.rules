@@ -25,7 +25,9 @@ service cloud.firestore {
       return exists(/databases/$(database)/documents/bracketGrace/$(uid))
              && request.time < get(/databases/$(database)/documents/bracketGrace/$(uid)).data.until;
     }
-    // Admin is gated by verified Google email — must match ADMIN_EMAIL in src/App.jsx.
+    // Admin is gated by a verified email address (the sign-in provider is not
+    // checked). src/App.jsx repeats the address inline in its cosmetic isAdmin
+    // check; change both together.
     function isAdmin() {
       return signedIn()
              && request.auth.token.email == 'tac02189@gmail.com'
